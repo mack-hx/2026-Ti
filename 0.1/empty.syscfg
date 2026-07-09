@@ -287,6 +287,9 @@ UART1.peripheral.txPin.$assign = "PA10";
 UART1.txPinConfig.$name        = "ti_driverlib_gpio_GPIOPinGeneric3";
 UART1.rxPinConfig.$name        = "ti_driverlib_gpio_GPIOPinGeneric4";
 
+UART1.enableInterrupt_RX       = true;
+UART1.interruptPriority        = "2";
+
 UART2.$name                            = "K230";
 UART2.peripheral.$assign               = "UART1";
 UART2.peripheral.rxPin.$assign         = "PA9";
