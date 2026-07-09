@@ -11,6 +11,8 @@ ORDERED_OBJS += \
 "./empty.o" \
 "./ti_msp_dl_config.o" \
 "./startup_mspm0g350x_gcc.o" \
+"./main.o" \
+"./PD42S1/pd42s1.o" \
 $(GEN_CMDS__FLAG) \
 -Wl,-Tdevice.lds.genlibs \
 -l:driverlib.a \
@@ -26,7 +28,9 @@ RMDIR := rm -rf
 # All of the sources participating in the build are defined here
 -include sources.mk
 -include subdir_vars.mk
+-include PD42S1/subdir_vars.mk
 -include subdir_rules.mk
+-include PD42S1/subdir_rules.mk
 -include objects.mk
 
 ifneq ($(MAKECMDGOALS),clean)
@@ -137,8 +141,8 @@ all: $(OBJS) $(GEN_CMDS)
 # Other Targets
 clean:
 	-$(RM) $(GEN_MISC_FILES__QUOTED)$(GEN_FILES__QUOTED)$(EXE_OUTPUTS__QUOTED)
-	-$(RM) "empty.o" "ti_msp_dl_config.o" "startup_mspm0g350x_gcc.o" 
-	-$(RM) "empty.d" "ti_msp_dl_config.d" "startup_mspm0g350x_gcc.d" 
+	-$(RM) "empty.o" "ti_msp_dl_config.o" "startup_mspm0g350x_gcc.o" "main.o" "PD42S1/pd42s1.o" 
+	-$(RM) "empty.d" "ti_msp_dl_config.d" "startup_mspm0g350x_gcc.d" "main.d" "PD42S1/pd42s1.d" 
 	-@echo ' '
 
 .PHONY: all clean dependents

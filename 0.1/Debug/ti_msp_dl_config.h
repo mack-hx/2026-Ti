@@ -197,9 +197,9 @@ bool SYSCFG_DL_SYSCTL_SYSPLL_init(void);
 #define GPIO_x_bujin_IOMUX_TX                                    (IOMUX_PINCM32)
 #define GPIO_x_bujin_IOMUX_RX_FUNC                     IOMUX_PINCM33_PF_UART2_RX
 #define GPIO_x_bujin_IOMUX_TX_FUNC                     IOMUX_PINCM32_PF_UART2_TX
-#define x_bujin_BAUD_RATE                                                 (9600)
-#define x_bujin_IBRD_40_MHZ_9600_BAUD                                      (260)
-#define x_bujin_FBRD_40_MHZ_9600_BAUD                                       (27)
+#define x_bujin_BAUD_RATE                                               (115200)
+#define x_bujin_IBRD_40_MHZ_115200_BAUD                                     (21)
+#define x_bujin_FBRD_40_MHZ_115200_BAUD                                     (45)
 /* Defines for y_bujin */
 #define y_bujin_INST                                                       UART3
 #define y_bujin_INST_FREQUENCY                                          80000000

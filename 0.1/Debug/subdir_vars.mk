@@ -9,7 +9,8 @@ SYSCFG_SRCS += \
 C_SRCS += \
 ../empty.c \
 ./ti_msp_dl_config.c \
-/Users/m/ti/mspm0_sdk_2_10_00_04/source/ti/devices/msp/m0p/startup_system_files/gcc/startup_mspm0g350x_gcc.c 
+/Users/m/ti/mspm0_sdk_2_10_00_04/source/ti/devices/msp/m0p/startup_system_files/gcc/startup_mspm0g350x_gcc.c \
+../main.c 
 
 GEN_CMDS += \
 ./device_linker.lds 
@@ -22,7 +23,8 @@ GEN_FILES += \
 C_DEPS += \
 ./empty.d \
 ./ti_msp_dl_config.d \
-./startup_mspm0g350x_gcc.d 
+./startup_mspm0g350x_gcc.d \
+./main.d 
 
 GEN_OPTS += \
 ./device.opt 
@@ -30,7 +32,8 @@ GEN_OPTS += \
 OBJS += \
 ./empty.o \
 ./ti_msp_dl_config.o \
-./startup_mspm0g350x_gcc.o 
+./startup_mspm0g350x_gcc.o \
+./main.o 
 
 GEN_MISC_FILES += \
 ./device.lds.genlibs \
@@ -40,7 +43,8 @@ GEN_MISC_FILES += \
 OBJS__QUOTED += \
 "empty.o" \
 "ti_msp_dl_config.o" \
-"startup_mspm0g350x_gcc.o" 
+"startup_mspm0g350x_gcc.o" \
+"main.o" 
 
 GEN_MISC_FILES__QUOTED += \
 "device.lds.genlibs" \
@@ -50,7 +54,8 @@ GEN_MISC_FILES__QUOTED += \
 C_DEPS__QUOTED += \
 "empty.d" \
 "ti_msp_dl_config.d" \
-"startup_mspm0g350x_gcc.d" 
+"startup_mspm0g350x_gcc.d" \
+"main.d" 
 
 GEN_FILES__QUOTED += \
 "device_linker.lds" \
@@ -60,7 +65,8 @@ GEN_FILES__QUOTED += \
 C_SRCS__QUOTED += \
 "../empty.c" \
 "./ti_msp_dl_config.c" \
-"/Users/m/ti/mspm0_sdk_2_10_00_04/source/ti/devices/msp/m0p/startup_system_files/gcc/startup_mspm0g350x_gcc.c" 
+"/Users/m/ti/mspm0_sdk_2_10_00_04/source/ti/devices/msp/m0p/startup_system_files/gcc/startup_mspm0g350x_gcc.c" \
+"../main.c" 
 
 SYSCFG_SRCS__QUOTED += \
 "../empty.syscfg" 

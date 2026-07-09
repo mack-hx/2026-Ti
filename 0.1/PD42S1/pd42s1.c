@@ -4,8 +4,7 @@
  * @note    基于正点原子SMD协议，适用于MSPM0G3507
  */
 #include "pd42s1.h"
-#include "ti/driverlib/DL_UART.h"
-#include "ti/driverlib/DL_GPIO.h"
+#include "ti_msp_dl_config.h"
 #include <string.h>
 
 /* ============================================================================
@@ -14,6 +13,11 @@
 static pd42_frame_t g_rx_frame;           /* 接收帧缓冲区 */
 static uint8_t g_rx_buffer[128];          /* UART接收缓冲区 */
 static volatile bool g_frame_ready = false;
+
+/* 供外部使用的发送缓冲区 */
+volatile uint8_t g_tx_buffer[64];
+volatile uint8_t g_tx_buffer_len = 0;
+volatile bool g_tx_ready = false;
 
 /* 接收数据回调 - 由UART中断调用 */
 void PD42S1_UART_Callback(uint8_t rx_data) {
@@ -71,35 +75,29 @@ void PD42S1_SendCommand(uint8_t addr, uint8_t func_code, uint8_t *data, uint8_t 
     uint8_t tx_buffer[64];
     uint8_t tx_index = 0;
     uint8_t frame_len;
-    
+
     /* 组帧: [HEAD][ADDR][FUNC][DATA_LEN][DATA...][CRC_H][CRC_L][TAIL] */
     tx_buffer[tx_index++] = PD42S1_FRAME_HEAD;
     tx_buffer[tx_index++] = addr;
     tx_buffer[tx_index++] = func_code;
     tx_buffer[tx_index++] = len;
-    
+
     if (len > 0 && data != NULL) {
         memcpy(&tx_buffer[tx_index], data, len);
         tx_index += len;
     }
-    
+
     /* 计算并添加CRC */
     uint16_t crc = PD42S1_CalcCRC16(&tx_buffer[1], tx_index - 1);
     tx_buffer[tx_index++] = (uint8_t)(crc >> 8);
     tx_buffer[tx_index++] = (uint8_t)(crc & 0xFF);
-    
+
     tx_buffer[tx_index++] = PD42S1_FRAME_TAIL;
-    
-    /* 发送帧 */
-    frame_len = tx_index;
-    
-    /* 使用DriverLib发送数据 - 实际串口发送需要根据硬件配置 */
-    /* 这里使用占位符，实际使用时请在SysConfig中配置UART */
-    extern DL_UARTController UART0;
-    for (uint8_t i = 0; i < frame_len; i++) {
-        while (!DL_UART_isTXReady(UART0));
-        DL_UART_transmitData(UART0, tx_buffer[i]);
-    }
+
+    /* 发送帧 - 使用全局变量传递 */
+    g_tx_buffer_len = tx_index;
+    memcpy(g_tx_buffer, tx_buffer, tx_index);
+    g_tx_ready = true;
 }
 
 bool PD42S1_WaitResponse(uint32_t timeout_ms) {

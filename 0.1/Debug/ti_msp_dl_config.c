@@ -737,13 +737,19 @@ SYSCONFIG_WEAK void SYSCFG_DL_x_bujin_init(void)
     DL_UART_Main_init(x_bujin_INST, (DL_UART_Main_Config *) &gx_bujinConfig);
     /*
      * Configure baud rate by setting oversampling and baud rate divisors.
-     *  Target baud rate: 9600
-     *  Actual baud rate: 9599.81
+     *  Target baud rate: 115200
+     *  Actual baud rate: 115190.78
      */
     DL_UART_Main_setOversampling(x_bujin_INST, DL_UART_OVERSAMPLING_RATE_16X);
-    DL_UART_Main_setBaudRateDivisor(x_bujin_INST, x_bujin_IBRD_40_MHZ_9600_BAUD, x_bujin_FBRD_40_MHZ_9600_BAUD);
+    DL_UART_Main_setBaudRateDivisor(x_bujin_INST, x_bujin_IBRD_40_MHZ_115200_BAUD, x_bujin_FBRD_40_MHZ_115200_BAUD);
 
 
+    /* Configure Interrupts */
+    DL_UART_Main_enableInterrupt(x_bujin_INST,
+                                 DL_UART_MAIN_INTERRUPT_RX_TIMEOUT_ERROR);
+
+
+    DL_UART_Main_setRXInterruptTimeout(x_bujin_INST, 10);
 
     DL_UART_Main_enable(x_bujin_INST);
 }
@@ -775,6 +781,12 @@ SYSCONFIG_WEAK void SYSCFG_DL_y_bujin_init(void)
     DL_UART_Main_setBaudRateDivisor(y_bujin_INST, y_bujin_IBRD_80_MHZ_9600_BAUD, y_bujin_FBRD_80_MHZ_9600_BAUD);
 
 
+    /* Configure Interrupts */
+    DL_UART_Main_enableInterrupt(y_bujin_INST,
+                                 DL_UART_MAIN_INTERRUPT_RX_TIMEOUT_ERROR);
+
+
+    DL_UART_Main_setRXInterruptTimeout(y_bujin_INST, 10);
 
     DL_UART_Main_enable(y_bujin_INST);
 }

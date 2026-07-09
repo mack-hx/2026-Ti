@@ -287,9 +287,6 @@ UART1.peripheral.txPin.$assign = "PA10";
 UART1.txPinConfig.$name        = "ti_driverlib_gpio_GPIOPinGeneric3";
 UART1.rxPinConfig.$name        = "ti_driverlib_gpio_GPIOPinGeneric4";
 
-UART1.enableInterrupt_RX       = true;
-UART1.interruptPriority        = "2";
-
 UART2.$name                            = "K230";
 UART2.peripheral.$assign               = "UART1";
 UART2.peripheral.rxPin.$assign         = "PA9";
@@ -305,6 +302,9 @@ UART2.rxPinConfig.passedPeripheralType = scripting.forceWrite("Digital");
 UART2.rxPinConfig.$name                = "ti_driverlib_gpio_GPIOPinGeneric6";
 
 UART3.$name                            = "x_bujin";
+UART3.targetBaudRate                   = 115200;
+UART3.rxTimeoutValue                   = 10;
+UART3.enabledInterrupts                = ["RX_TIMEOUT_ERROR"];
 UART3.peripheral.$assign               = "UART2";
 UART3.peripheral.rxPin.$assign         = "PB16";
 UART3.peripheral.txPin.$assign         = "PB15";
@@ -319,6 +319,8 @@ UART3.rxPinConfig.passedPeripheralType = scripting.forceWrite("Digital");
 UART3.rxPinConfig.$name                = "ti_driverlib_gpio_GPIOPinGeneric8";
 
 UART4.$name                            = "y_bujin";
+UART4.enabledInterrupts                = ["RX_TIMEOUT_ERROR"];
+UART4.rxTimeoutValue                   = 10;
 UART4.peripheral.rxPin.$assign         = "PB3";
 UART4.peripheral.txPin.$assign         = "PB2";
 UART4.txPinConfig.direction            = scripting.forceWrite("OUTPUT");
