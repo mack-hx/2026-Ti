@@ -1,0 +1,22 @@
+# --- 本机私有 ---
+LOG.md
+
+# --- CCS 构建产物 ---
+0.1/Debug/
+*.out
+*.map
+*.o
+*.d
+*.obj
+*.bin
+
+# --- Editor ---
+.DS_Store
+.vscode/
+.idea/
+.cursor/
+.theia/
+
+# --- 备份 ---
+*.bak
+*.tmp

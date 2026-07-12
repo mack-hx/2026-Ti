@@ -119,5 +119,10 @@ GEN_OPTS__QUOTED :=
 # Every subdirectory with source files must be described here
 SUBDIRS := \
 . \
-PD42S1 \
+Hardware/KEY \
+Hardware/LCD_Hardware_SPI \
+Hardware/LED \
+Hardware/PD42S1 \
+system \
+user/UI \
 

@@ -1,8 +1,14 @@
-"./empty.o"
 "./ti_msp_dl_config.o"
 "./startup_mspm0g350x_gcc.o"
 "./main.o"
-"./PD42S1/pd42s1.o"
+"./Hardware/KEY/key.o"
+"./Hardware/LCD_Hardware_SPI/LCD.o"
+"./Hardware/LCD_Hardware_SPI/LCD_Data.o"
+"./Hardware/LED/led.o"
+"./Hardware/PD42S1/pd42s1.o"
+"./Hardware/PD42S1/stepmotor.o"
+"./system/clock.o"
+"./user/UI/ui.o"
 -Wl,-T"./device_linker.lds"
 -Wl,-Tdevice.lds.genlibs
 -l:driverlib.a

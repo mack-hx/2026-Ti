@@ -8,11 +8,17 @@ GEN_OPTS__FLAG := @"./device.opt"
 GEN_CMDS__FLAG := -Wl,-T"./device_linker.lds" 
 
 ORDERED_OBJS += \
-"./empty.o" \
 "./ti_msp_dl_config.o" \
 "./startup_mspm0g350x_gcc.o" \
 "./main.o" \
-"./PD42S1/pd42s1.o" \
+"./Hardware/KEY/key.o" \
+"./Hardware/LCD_Hardware_SPI/LCD.o" \
+"./Hardware/LCD_Hardware_SPI/LCD_Data.o" \
+"./Hardware/LED/led.o" \
+"./Hardware/PD42S1/pd42s1.o" \
+"./Hardware/PD42S1/stepmotor.o" \
+"./system/clock.o" \
+"./user/UI/ui.o" \
 $(GEN_CMDS__FLAG) \
 -Wl,-Tdevice.lds.genlibs \
 -l:driverlib.a \
@@ -28,9 +34,19 @@ RMDIR := rm -rf
 # All of the sources participating in the build are defined here
 -include sources.mk
 -include subdir_vars.mk
--include PD42S1/subdir_vars.mk
+-include Hardware/KEY/subdir_vars.mk
+-include Hardware/LCD_Hardware_SPI/subdir_vars.mk
+-include Hardware/LED/subdir_vars.mk
+-include Hardware/PD42S1/subdir_vars.mk
+-include system/subdir_vars.mk
+-include user/UI/subdir_vars.mk
 -include subdir_rules.mk
--include PD42S1/subdir_rules.mk
+-include Hardware/KEY/subdir_rules.mk
+-include Hardware/LCD_Hardware_SPI/subdir_rules.mk
+-include Hardware/LED/subdir_rules.mk
+-include Hardware/PD42S1/subdir_rules.mk
+-include system/subdir_rules.mk
+-include user/UI/subdir_rules.mk
 -include objects.mk
 
 ifneq ($(MAKECMDGOALS),clean)
@@ -141,8 +157,8 @@ all: $(OBJS) $(GEN_CMDS)
 # Other Targets
 clean:
 	-$(RM) $(GEN_MISC_FILES__QUOTED)$(GEN_FILES__QUOTED)$(EXE_OUTPUTS__QUOTED)
-	-$(RM) "empty.o" "ti_msp_dl_config.o" "startup_mspm0g350x_gcc.o" "main.o" "PD42S1/pd42s1.o" 
-	-$(RM) "empty.d" "ti_msp_dl_config.d" "startup_mspm0g350x_gcc.d" "main.d" "PD42S1/pd42s1.d" 
+	-$(RM) "ti_msp_dl_config.o" "startup_mspm0g350x_gcc.o" "main.o" "Hardware/KEY/key.o" "Hardware/LCD_Hardware_SPI/LCD.o" "Hardware/LCD_Hardware_SPI/LCD_Data.o" "Hardware/LED/led.o" "Hardware/PD42S1/pd42s1.o" "Hardware/PD42S1/stepmotor.o" "system/clock.o" "user/UI/ui.o" 
+	-$(RM) "ti_msp_dl_config.d" "startup_mspm0g350x_gcc.d" "main.d" "Hardware/KEY/key.d" "Hardware/LCD_Hardware_SPI/LCD.d" "Hardware/LCD_Hardware_SPI/LCD_Data.d" "Hardware/LED/led.d" "Hardware/PD42S1/pd42s1.d" "Hardware/PD42S1/stepmotor.d" "system/clock.d" "user/UI/ui.d" 
 	-@echo ' '
 
 .PHONY: all clean dependents

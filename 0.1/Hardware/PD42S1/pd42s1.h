@@ -1,7 +1,10 @@
 /**
  * @file    pd42s1.h
  * @brief   PD42S1 闭环步进电机驱动器控制接口
- * @note    基于正点原子SMD协议，适用于MSPM0G3507
+ * @note    正点原子自定义协议 (SMD)：8位校验和(CHECKSUM)，包含帧头
+ *          下行: [C5][ADDR][FUNC][DATA...][CHECKSUM][5C]
+ *          上行: [C5][ADDR][FUNC][ERR][DATA...][CHECKSUM][5C]
+ *          CHECKSUM = sum([C5][ADDR][FUNC][DATA...]) & 0xFF
  */
 #ifndef __PD42S1_H__
 #define __PD42S1_H__
@@ -82,6 +85,20 @@ typedef enum {
     PD42_FCT_STOP_IMMEDIATE   = 0xFC,   /* 立即停止 */
 } pd42_ctrl_cmd_t;
 
+/* 回零指令 (0x90~0x9F, 手册 4.5) */
+typedef enum {
+    PD42_FCT_SET_LEFT_LIMIT   = 0x90,   /* 设置左限位原点位置 */
+    PD42_FCT_SET_LIMIT_HOME   = 0x91,   /* 设置有无限位回零 (方向/速度/电流) */
+    PD42_FCT_TRIGGER_HOME     = 0x92,   /* 触发回零 */
+    PD42_FCT_ABORT_HOME       = 0x93,   /* 强制中断回零 */
+    PD42_FCT_READ_HOME_PARAM  = 0x94,   /* 读取回零参数 */
+    PD42_FCT_SET_ZERO_TIMEOUT = 0x95,   /* 修改原点回零超时时间 */
+    PD42_FCT_READ_HOME_STATUS = 0x96,   /* 读取回零状态 */
+    PD42_FCT_SET_AUTO_HOME    = 0x97,   /* 设置上电自动回零 */
+    PD42_FCT_SET_RIGHT_LIMIT  = 0x98,   /* 设置右限位原点位置 */
+    PD42_FCT_SET_LIMIT_SWITCH = 0x99,   /* 设置左右限位开关状态 */
+} pd42_home_cmd_t;
+
 /* 方向定义 */
 typedef enum {
     PD42_DIR_CW  = 0,    /* 顺时针 */
@@ -111,8 +128,7 @@ typedef enum {
 typedef struct {
     uint8_t  slave_addr;      /* 从机地址 */
     uint8_t  function_code;   /* 功能码 */
-    uint8_t  error_code;      /* 错误码 */
-    uint8_t  data[64];       /* 数据缓冲区 */
+    uint8_t  error_code;      /* 错误码 */    uint8_t  data[64];       /* 数据缓冲区 */
     uint8_t  data_len;       /* 数据长度 */
     uint16_t checksum;       /* 校验和 */
 } pd42_frame_t;
@@ -127,16 +143,11 @@ typedef struct {
     int32_t  speed_rpm;      /* 当前速度 */
 } pd42_driver_t;
 
-/* ============================================================================
- * 外部变量声明 (由 pd42s1.c 提供)
- * ============================================================================ */
+/* TX发送缓冲区 (供外部读取显示) */
 extern volatile uint8_t g_tx_buffer[64];
 extern volatile uint8_t g_tx_buffer_len;
 extern volatile bool g_tx_ready;
-
-/* ============================================================================
- * 函数声明
- * ============================================================================ */
+extern volatile bool g_tx_fired;
 
 /* 初始化 */
 void PD42S1_Init(uint32_t baud_rate);
@@ -158,24 +169,84 @@ void PD42S1_ReadPosition(uint8_t addr);
 void PD42S1_ReadStatus(uint8_t addr);
 void PD42S1_ReadArrived(uint8_t addr);
 
-/* 运动控制 - 速度模式 */
+/* 运动控制 - 速度模式 (大端 float) */
 void PD42S1_SpeedMode(uint8_t addr, pd42_dir_t dir, uint8_t accel, float speed_rpm);
+
+/**
+ * @brief   直接发送速度模式原始数据（不走 float memcpy，保证字节序）
+ * @note    用于确保和大端 float 字节序一致
+ *          速度字节序: [speed_b3][speed_b2][speed_b1][speed_b0] (big-endian)
+ *          正转: [C5][01][F1][00][64][speed_b3..b0][CHECKSUM][5C]
+ *          反转: [C5][01][F1][01][64][speed_b3..b0][CHECKSUM][5C]
+ */
+void PD42S1_SendSpeedRaw(uint8_t addr, pd42_dir_t dir, uint8_t accel,
+                          uint8_t speed_b3, uint8_t speed_b2,
+                          uint8_t speed_b1, uint8_t speed_b0);
 
 /* 运动控制 - 位置模式 */
 void PD42S1_AbsPosMode(uint8_t addr, pd42_dir_t dir, uint8_t accel, uint16_t speed, int32_t pulses);
-void PD42S1_RelPosMode(uint8_t addr, pd42_dir_t dir, uint8_t accel, uint16_t speed, uint32_t pulses);
+void PD42S1_RelPosMode(uint8_t addr, pd42_dir_t dir, uint8_t accel, uint16_t speed, int32_t pulses);
 
 /* 辅助功能 */
 void PD42S1_MotorEnable(uint8_t addr, bool enable);
 void PD42S1_StopImmediate(uint8_t addr);
 void PD42S1_ClearStall(uint8_t addr);
+void PD42S1_ClearStatus(uint8_t addr);     /* 0xFB: 清除状态 */
 void PD42S1_ZeroPosition(uint8_t addr);
 
 /* 参数设置 */
 void PD42S1_SetMicrostep(uint8_t addr, uint16_t step);
 void PD42S1_SetCurrent(uint8_t addr, int16_t current_ma);
+void PD42S1_SetWorkMode(uint8_t addr, uint8_t mode);
+
+/* 回零类指令 (手册 4.5) */
+void PD42S1_SetLeftLimitOrigin(uint8_t addr, int32_t pulses);   /* 0x90 */
+void PD42S1_SetRightLimitOrigin(uint8_t addr, int32_t pulses);  /* 0x98 */
+void PD42S1_SetLimitHome(uint8_t addr, uint8_t mode, uint8_t dir,
+                         uint16_t speed_rpm, uint16_t limit_ma); /* 0x91 */
+void PD42S1_SetZeroTimeout(uint8_t addr, uint32_t timeout_ms);  /* 0x95 */
+void PD42S1_SetAutoHome(uint8_t addr, bool enable);             /* 0x97 */
+void PD42S1_TriggerHome(uint8_t addr, uint8_t mode);            /* 0x92 mode=0/1/2 */
+
+/* 0x91 设置有无限位回零 mode 取值 (手册 4.5.2) */
+#define PD42_LIMIT_LEFT_INFINITE   0x00   /* 左无限位回零 */
+#define PD42_LIMIT_RIGHT_INFINITE  0x01   /* 右无限位回零 */
+#define PD42_LIMIT_LEFT_FINITE     0x02   /* 左有限位回零 */
+#define PD42_LIMIT_RIGHT_FINITE    0x03   /* 右有限位回零 */
+
+/* 触发回零的 mode 取值 (手册 4.5.3) */
+#define PD42_HOME_SINGLE   0x00   /* 单圈回零: 按完整一圈找原点信号 */
+#define PD42_HOME_NEAREST  0x01   /* 就近回零: 从当前位置朝最近原点位置移动 */
+#define PD42_HOME_MULTI    0x02   /* 多圈回零: 找到绝对 0 点 */
+
+/* 工作模式常量 (用于 PD42S1_SetWorkMode) */
+#define PD42_MODE_POS_LOOP      0x00   /* 通信位置模式 */
+#define PD42_MODE_SPEED_LOOP     0x01   /* 通信速度模式 ← 速度命令需要这个 */
+#define PD42_MODE_TORQUE_LOOP    0x02   /* 通信力矩模式 */
+#define PD42_MODE_PULSE          0x03   /* 脉冲模式 */
+#define PD42_MODE_PW_POS         0x04   /* 脉宽位置模式 */
+#define PD42_MODE_PW_SPEED       0x05   /* 脉宽速度模式 */
+#define PD42_MODE_PW_TORQUE      0x06   /* 脉宽力矩模式 */
+#define PD42_MODE_HOME           0x07   /* 回零模式 */
+#define PD42_MODE_OL_SPEED       0x08   /* 开环速度模式 */
+#define PD42_MODE_OL_POS         0x09   /* 开环位置模式 */
 
 /* CRC校验 */
 uint16_t PD42S1_CalcCRC16(const uint8_t *data, uint8_t len);
+
+/* UART回调 - 由中断处理函数调用 */
+void PD42S1_UART_Callback(uint8_t rx_data);
+
+/* 诊断计数器 (诊断 RX 链路用, main.c 读取显示) */
+extern volatile uint32_t g_rx_byte_cnt;
+extern volatile uint32_t g_rx_frame_done_cnt;
+extern volatile uint32_t g_rx_chk_ok_cnt;
+extern volatile uint32_t g_rx_chk_fail_cnt;
+extern volatile uint8_t g_last_frame_len;
+extern volatile uint8_t g_last_frame_data_len;
+extern volatile uint8_t g_last_frame_raw[16];
+extern volatile bool g_captured;
+
+void PD42S1_ResetCapture(void);
 
 #endif /* __PD42S1_H__ */

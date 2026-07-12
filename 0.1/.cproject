@@ -39,6 +39,8 @@
                                     <listOptionValue value="${SYSCONFIG_TOOL_INCLUDE_PATH}"/>
                                     <listOptionValue value="${PROJECT_ROOT}"/>
                                     <listOptionValue value="${PROJECT_ROOT}/${ConfigName}"/>
+                                    <listOptionValue value="${PROJECT_ROOT}/Hardware/LCD_Hardware_SPI"/>
+                                    <listOptionValue value="${PROJECT_ROOT}/Hardware/PD42S1"/>
                                     <listOptionValue value="${COM_TI_MSPM0_SDK_INSTALL_DIR}/source/third_party/CMSIS/Core/Include"/>
                                     <listOptionValue value="${COM_TI_MSPM0_SDK_INSTALL_DIR}/source"/>
                                     <listOptionValue value="${CG_TOOL_ROOT}/arm-none-eabi/include/newlib-nano"/>

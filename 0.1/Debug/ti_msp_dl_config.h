@@ -213,9 +213,9 @@ bool SYSCFG_DL_SYSCTL_SYSPLL_init(void);
 #define GPIO_y_bujin_IOMUX_TX                                    (IOMUX_PINCM15)
 #define GPIO_y_bujin_IOMUX_RX_FUNC                     IOMUX_PINCM16_PF_UART3_RX
 #define GPIO_y_bujin_IOMUX_TX_FUNC                     IOMUX_PINCM15_PF_UART3_TX
-#define y_bujin_BAUD_RATE                                                 (9600)
-#define y_bujin_IBRD_80_MHZ_9600_BAUD                                      (520)
-#define y_bujin_FBRD_80_MHZ_9600_BAUD                                       (53)
+#define y_bujin_BAUD_RATE                                               (115200)
+#define y_bujin_IBRD_80_MHZ_115200_BAUD                                     (43)
+#define y_bujin_FBRD_80_MHZ_115200_BAUD                                     (26)
 
 
 
@@ -278,11 +278,11 @@ bool SYSCFG_DL_SYSCTL_SYSPLL_init(void);
 #define BEEP_A29_PIN                                            (DL_GPIO_PIN_12)
 #define BEEP_A29_IOMUX                                           (IOMUX_PINCM34)
 /* Port definition for Pin Group LED */
-#define LED_PORT                                                         (GPIOA)
+#define LED_PORT                                                         (GPIOB)
 
-/* Defines for B22: GPIOA.14 with pinCMx 36 on package pin 7 */
-#define LED_B22_PIN                                             (DL_GPIO_PIN_14)
-#define LED_B22_IOMUX                                            (IOMUX_PINCM36)
+/* Defines for B22: GPIOB.22 with pinCMx 50 on package pin 21 */
+#define LED_B22_PIN                                             (DL_GPIO_PIN_22)
+#define LED_B22_IOMUX                                            (IOMUX_PINCM50)
 /* Port definition for Pin Group LCD */
 #define LCD_PORT                                                         (GPIOB)
 
@@ -316,22 +316,22 @@ bool SYSCFG_DL_SYSCTL_SYSPLL_init(void);
 /* Defines for read_B05: GPIOB.5 with pinCMx 18 on package pin 53 */
 #define bianma2_read_B05_PIN                                     (DL_GPIO_PIN_5)
 #define bianma2_read_B05_IOMUX                                   (IOMUX_PINCM18)
-/* Defines for AIN1_B06: GPIOB.19 with pinCMx 45 on package pin 16 */
-#define TB6612_AIN1_B06_PORT                                             (GPIOB)
-#define TB6612_AIN1_B06_PIN                                     (DL_GPIO_PIN_19)
-#define TB6612_AIN1_B06_IOMUX                                    (IOMUX_PINCM45)
+/* Defines for AIN1_B06: GPIOA.14 with pinCMx 36 on package pin 7 */
+#define TB6612_AIN1_B06_PORT                                             (GPIOA)
+#define TB6612_AIN1_B06_PIN                                     (DL_GPIO_PIN_14)
+#define TB6612_AIN1_B06_IOMUX                                    (IOMUX_PINCM36)
 /* Defines for AIN2_B07: GPIOB.7 with pinCMx 24 on package pin 59 */
 #define TB6612_AIN2_B07_PORT                                             (GPIOB)
 #define TB6612_AIN2_B07_PIN                                      (DL_GPIO_PIN_7)
 #define TB6612_AIN2_B07_IOMUX                                    (IOMUX_PINCM24)
-/* Defines for BIN1_B23: GPIOA.21 with pinCMx 46 on package pin 17 */
+/* Defines for BIN1_B23: GPIOA.18 with pinCMx 40 on package pin 11 */
 #define TB6612_BIN1_B23_PORT                                             (GPIOA)
-#define TB6612_BIN1_B23_PIN                                     (DL_GPIO_PIN_21)
-#define TB6612_BIN1_B23_IOMUX                                    (IOMUX_PINCM46)
-/* Defines for BIN2_B27: GPIOA.22 with pinCMx 47 on package pin 18 */
-#define TB6612_BIN2_B27_PORT                                             (GPIOA)
-#define TB6612_BIN2_B27_PIN                                     (DL_GPIO_PIN_22)
-#define TB6612_BIN2_B27_IOMUX                                    (IOMUX_PINCM47)
+#define TB6612_BIN1_B23_PIN                                     (DL_GPIO_PIN_18)
+#define TB6612_BIN1_B23_IOMUX                                    (IOMUX_PINCM40)
+/* Defines for BIN2_B27: GPIOB.19 with pinCMx 45 on package pin 16 */
+#define TB6612_BIN2_B27_PORT                                             (GPIOB)
+#define TB6612_BIN2_B27_PIN                                     (DL_GPIO_PIN_19)
+#define TB6612_BIN2_B27_IOMUX                                    (IOMUX_PINCM45)
 /* Port definition for Pin Group chaosheng */
 #define chaosheng_PORT                                                   (GPIOB)
 
@@ -341,68 +341,64 @@ bool SYSCFG_DL_SYSCTL_SYSPLL_init(void);
 /* Defines for Echo_B18: GPIOB.17 with pinCMx 43 on package pin 14 */
 #define chaosheng_Echo_B18_PIN                                  (DL_GPIO_PIN_17)
 #define chaosheng_Echo_B18_IOMUX                                 (IOMUX_PINCM43)
-/* Defines for B25_2: GPIOB.20 with pinCMx 48 on package pin 19 */
-#define ghuidu_B25_2_PORT                                                (GPIOB)
-#define ghuidu_B25_2_PIN                                        (DL_GPIO_PIN_20)
-#define ghuidu_B25_2_IOMUX                                       (IOMUX_PINCM48)
-/* Defines for A24_4: GPIOB.21 with pinCMx 49 on package pin 20 */
+/* Defines for B25_2: GPIOA.21 with pinCMx 46 on package pin 17 */
+#define ghuidu_B25_2_PORT                                                (GPIOA)
+#define ghuidu_B25_2_PIN                                        (DL_GPIO_PIN_21)
+#define ghuidu_B25_2_IOMUX                                       (IOMUX_PINCM46)
+/* Defines for A24_4: GPIOB.20 with pinCMx 48 on package pin 19 */
 #define ghuidu_A24_4_PORT                                                (GPIOB)
-#define ghuidu_A24_4_PIN                                        (DL_GPIO_PIN_21)
-#define ghuidu_A24_4_IOMUX                                       (IOMUX_PINCM49)
-/* Defines for B19_3: GPIOB.22 with pinCMx 50 on package pin 21 */
+#define ghuidu_A24_4_PIN                                        (DL_GPIO_PIN_20)
+#define ghuidu_A24_4_IOMUX                                       (IOMUX_PINCM48)
+/* Defines for B19_3: GPIOB.23 with pinCMx 51 on package pin 22 */
 #define ghuidu_B19_3_PORT                                                (GPIOB)
-#define ghuidu_B19_3_PIN                                        (DL_GPIO_PIN_22)
-#define ghuidu_B19_3_IOMUX                                       (IOMUX_PINCM50)
-/* Defines for A14_6: GPIOB.23 with pinCMx 51 on package pin 22 */
-#define ghuidu_A14_6_PORT                                                (GPIOB)
+#define ghuidu_B19_3_PIN                                        (DL_GPIO_PIN_23)
+#define ghuidu_B19_3_IOMUX                                       (IOMUX_PINCM51)
+/* Defines for A14_6: GPIOA.23 with pinCMx 53 on package pin 24 */
+#define ghuidu_A14_6_PORT                                                (GPIOA)
 #define ghuidu_A14_6_PIN                                        (DL_GPIO_PIN_23)
-#define ghuidu_A14_6_IOMUX                                       (IOMUX_PINCM51)
-/* Defines for A27_1: GPIOB.24 with pinCMx 52 on package pin 23 */
-#define ghuidu_A27_1_PORT                                                (GPIOB)
+#define ghuidu_A14_6_IOMUX                                       (IOMUX_PINCM53)
+/* Defines for A27_1: GPIOA.24 with pinCMx 54 on package pin 25 */
+#define ghuidu_A27_1_PORT                                                (GPIOA)
 #define ghuidu_A27_1_PIN                                        (DL_GPIO_PIN_24)
-#define ghuidu_A27_1_IOMUX                                       (IOMUX_PINCM52)
-/* Defines for A26_5: GPIOA.23 with pinCMx 53 on package pin 24 */
-#define ghuidu_A26_5_PORT                                                (GPIOA)
-#define ghuidu_A26_5_PIN                                        (DL_GPIO_PIN_23)
-#define ghuidu_A26_5_IOMUX                                       (IOMUX_PINCM53)
-/* Defines for A07_7: GPIOA.24 with pinCMx 54 on package pin 25 */
-#define ghuidu_A07_7_PORT                                                (GPIOA)
-#define ghuidu_A07_7_PIN                                        (DL_GPIO_PIN_24)
-#define ghuidu_A07_7_IOMUX                                       (IOMUX_PINCM54)
-/* Defines for B12_8: GPIOB.25 with pinCMx 56 on package pin 27 */
-#define ghuidu_B12_8_PORT                                                (GPIOB)
-#define ghuidu_B12_8_PIN                                        (DL_GPIO_PIN_25)
-#define ghuidu_B12_8_IOMUX                                       (IOMUX_PINCM56)
-/* Defines for K1_B00: GPIOB.27 with pinCMx 58 on package pin 29 */
+#define ghuidu_A27_1_IOMUX                                       (IOMUX_PINCM54)
+/* Defines for A26_5: GPIOB.25 with pinCMx 56 on package pin 27 */
+#define ghuidu_A26_5_PORT                                                (GPIOB)
+#define ghuidu_A26_5_PIN                                        (DL_GPIO_PIN_25)
+#define ghuidu_A26_5_IOMUX                                       (IOMUX_PINCM56)
+/* Defines for A07_7: GPIOB.27 with pinCMx 58 on package pin 29 */
+#define ghuidu_A07_7_PORT                                                (GPIOB)
+#define ghuidu_A07_7_PIN                                        (DL_GPIO_PIN_27)
+#define ghuidu_A07_7_IOMUX                                       (IOMUX_PINCM58)
+/* Defines for B12_8: GPIOA.26 with pinCMx 59 on package pin 30 */
+#define ghuidu_B12_8_PORT                                                (GPIOA)
+#define ghuidu_B12_8_PIN                                        (DL_GPIO_PIN_26)
+#define ghuidu_B12_8_IOMUX                                       (IOMUX_PINCM59)
+/* Defines for K1_B00: GPIOB.0 with pinCMx 12 on package pin 47 */
 #define key_K1_B00_PORT                                                  (GPIOB)
-#define key_K1_B00_PIN                                          (DL_GPIO_PIN_27)
-#define key_K1_B00_IOMUX                                         (IOMUX_PINCM58)
-/* Defines for K4_B24: GPIOA.26 with pinCMx 59 on package pin 30 */
-#define key_K4_B24_PORT                                                  (GPIOA)
-#define key_K4_B24_PIN                                          (DL_GPIO_PIN_26)
-#define key_K4_B24_IOMUX                                         (IOMUX_PINCM59)
-/* Defines for A22_K3: GPIOA.29 with pinCMx 4 on package pin 36 */
-#define key_A22_K3_PORT                                                  (GPIOA)
-#define key_A22_K3_PIN                                          (DL_GPIO_PIN_29)
-#define key_A22_K3_IOMUX                                          (IOMUX_PINCM4)
+#define key_K1_B00_PIN                                           (DL_GPIO_PIN_0)
+#define key_K1_B00_IOMUX                                         (IOMUX_PINCM12)
+/* Defines for K4_B24: GPIOB.24 with pinCMx 52 on package pin 23 */
+#define key_K4_B24_PORT                                                  (GPIOB)
+#define key_K4_B24_PIN                                          (DL_GPIO_PIN_24)
+#define key_K4_B24_IOMUX                                         (IOMUX_PINCM52)
+/* Defines for K3_A22: GPIOA.22 with pinCMx 47 on package pin 18 */
+#define key_K3_A22_PORT                                                  (GPIOA)
+#define key_K3_A22_PIN                                          (DL_GPIO_PIN_22)
+#define key_K3_A22_IOMUX                                         (IOMUX_PINCM47)
 /* Defines for K2B_01: GPIOB.1 with pinCMx 13 on package pin 48 */
 #define key_K2B_01_PORT                                                  (GPIOB)
 #define key_K2B_01_PIN                                           (DL_GPIO_PIN_1)
 #define key_K2B_01_IOMUX                                         (IOMUX_PINCM13)
-/* Defines for BSL_A18: GPIOA.18 with pinCMx 40 on package pin 11 */
-#define key_BSL_A18_PORT                                                 (GPIOA)
-#define key_BSL_A18_PIN                                         (DL_GPIO_PIN_18)
-#define key_BSL_A18_IOMUX                                        (IOMUX_PINCM40)
-/* Defines for USE_key_B21: GPIOA.2 with pinCMx 7 on package pin 42 */
-#define key_USE_key_B21_PORT                                             (GPIOA)
-#define key_USE_key_B21_PIN                                      (DL_GPIO_PIN_2)
-#define key_USE_key_B21_IOMUX                                     (IOMUX_PINCM7)
+/* Defines for USE_key_B21: GPIOB.21 with pinCMx 49 on package pin 20 */
+#define key_USE_key_B21_PORT                                             (GPIOB)
+#define key_USE_key_B21_PIN                                     (DL_GPIO_PIN_21)
+#define key_USE_key_B21_IOMUX                                    (IOMUX_PINCM49)
 /* Port definition for Pin Group can */
 #define can_PORT                                                         (GPIOA)
 
-/* Defines for TX_A12: GPIOA.3 with pinCMx 8 on package pin 43 */
-#define can_TX_A12_PIN                                           (DL_GPIO_PIN_3)
-#define can_TX_A12_IOMUX                                          (IOMUX_PINCM8)
+/* Defines for TX_A12: GPIOA.29 with pinCMx 4 on package pin 36 */
+#define can_TX_A12_PIN                                          (DL_GPIO_PIN_29)
+#define can_TX_A12_IOMUX                                          (IOMUX_PINCM4)
 /* Defines for RX_A13: GPIOA.13 with pinCMx 35 on package pin 6 */
 #define can_RX_A13_PIN                                          (DL_GPIO_PIN_13)
 #define can_RX_A13_IOMUX                                         (IOMUX_PINCM35)

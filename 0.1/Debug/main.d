@@ -88,7 +88,12 @@ main.o: ../main.c \
  /Users/m/ti/mspm0_sdk_2_10_00_04/source/ti/driverlib/dl_wwdt.h \
  /Users/m/ti/mspm0_sdk_2_10_00_04/source/ti/driverlib/m0p/dl_interrupt.h \
  /Users/m/ti/mspm0_sdk_2_10_00_04/source/ti/driverlib/m0p/dl_systick.h \
- ../PD42S1/pd42s1.h
+ ../Hardware/PD42S1/stepmotor.h ../Hardware/PD42S1/pd42s1.h \
+ ../Hardware/KEY/key.h ../Hardware/LED/led.h ../user/UI/ui.h \
+ /Volumes/Moving/work/01_code/01_Competition/01_ELE_com/2026-TI-Em/2026-TI/0.1/Hardware/LCD_Hardware_SPI/LCD.h \
+ /Volumes/Moving/work/01_code/01_Competition/01_ELE_com/2026-TI-Em/2026-TI/0.1/system/clock.h \
+ /Volumes/Moving/work/01_code/01_Competition/01_ELE_com/2026-TI-Em/2026-TI/0.1/Hardware/LCD_Hardware_SPI/LCD_Data.h \
+ ../system/clock.h
 
 ti_msp_dl_config.h:
 
@@ -264,4 +269,20 @@ ti_msp_dl_config.h:
 
 /Users/m/ti/mspm0_sdk_2_10_00_04/source/ti/driverlib/m0p/dl_systick.h:
 
-../PD42S1/pd42s1.h:
+../Hardware/PD42S1/stepmotor.h:
+
+../Hardware/PD42S1/pd42s1.h:
+
+../Hardware/KEY/key.h:
+
+../Hardware/LED/led.h:
+
+../user/UI/ui.h:
+
+/Volumes/Moving/work/01_code/01_Competition/01_ELE_com/2026-TI-Em/2026-TI/0.1/Hardware/LCD_Hardware_SPI/LCD.h:
+
+/Volumes/Moving/work/01_code/01_Competition/01_ELE_com/2026-TI-Em/2026-TI/0.1/system/clock.h:
+
+/Volumes/Moving/work/01_code/01_Competition/01_ELE_com/2026-TI-Em/2026-TI/0.1/Hardware/LCD_Hardware_SPI/LCD_Data.h:
+
+../system/clock.h:

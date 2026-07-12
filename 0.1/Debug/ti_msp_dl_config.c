@@ -274,17 +274,25 @@ SYSCONFIG_WEAK void SYSCFG_DL_GPIO_init(void)
 		 DL_GPIO_INVERSION_DISABLE, DL_GPIO_RESISTOR_NONE,
 		 DL_GPIO_HYSTERESIS_DISABLE, DL_GPIO_WAKEUP_DISABLE);
 
-    DL_GPIO_initDigitalOutput(key_K1_B00_IOMUX);
+    DL_GPIO_initDigitalInputFeatures(key_K1_B00_IOMUX,
+		 DL_GPIO_INVERSION_DISABLE, DL_GPIO_RESISTOR_NONE,
+		 DL_GPIO_HYSTERESIS_DISABLE, DL_GPIO_WAKEUP_DISABLE);
 
-    DL_GPIO_initDigitalOutput(key_K4_B24_IOMUX);
+    DL_GPIO_initDigitalInputFeatures(key_K4_B24_IOMUX,
+		 DL_GPIO_INVERSION_DISABLE, DL_GPIO_RESISTOR_NONE,
+		 DL_GPIO_HYSTERESIS_DISABLE, DL_GPIO_WAKEUP_DISABLE);
 
-    DL_GPIO_initDigitalOutput(key_A22_K3_IOMUX);
+    DL_GPIO_initDigitalInputFeatures(key_K3_A22_IOMUX,
+		 DL_GPIO_INVERSION_DISABLE, DL_GPIO_RESISTOR_NONE,
+		 DL_GPIO_HYSTERESIS_DISABLE, DL_GPIO_WAKEUP_DISABLE);
 
-    DL_GPIO_initDigitalOutput(key_K2B_01_IOMUX);
+    DL_GPIO_initDigitalInputFeatures(key_K2B_01_IOMUX,
+		 DL_GPIO_INVERSION_DISABLE, DL_GPIO_RESISTOR_NONE,
+		 DL_GPIO_HYSTERESIS_DISABLE, DL_GPIO_WAKEUP_DISABLE);
 
-    DL_GPIO_initDigitalOutput(key_BSL_A18_IOMUX);
-
-    DL_GPIO_initDigitalOutput(key_USE_key_B21_IOMUX);
+    DL_GPIO_initDigitalInputFeatures(key_USE_key_B21_IOMUX,
+		 DL_GPIO_INVERSION_DISABLE, DL_GPIO_RESISTOR_PULL_UP,
+		 DL_GPIO_HYSTERESIS_DISABLE, DL_GPIO_WAKEUP_DISABLE);
 
     DL_GPIO_initDigitalOutput(can_TX_A12_IOMUX);
 
@@ -293,45 +301,33 @@ SYSCONFIG_WEAK void SYSCFG_DL_GPIO_init(void)
 		 DL_GPIO_HYSTERESIS_DISABLE, DL_GPIO_WAKEUP_DISABLE);
 
     DL_GPIO_clearPins(GPIOA, BEEP_A29_PIN |
-		LED_B22_PIN |
 		bianma1_read_A31_PIN |
+		TB6612_AIN1_B06_PIN |
 		TB6612_BIN1_B23_PIN |
-		TB6612_BIN2_B27_PIN |
-		key_K4_B24_PIN |
-		key_A22_K3_PIN |
-		key_BSL_A18_PIN |
-		key_USE_key_B21_PIN |
 		can_TX_A12_PIN);
     DL_GPIO_enableOutput(GPIOA, BEEP_A29_PIN |
-		LED_B22_PIN |
 		bianma1_read_A31_PIN |
+		TB6612_AIN1_B06_PIN |
 		TB6612_BIN1_B23_PIN |
-		TB6612_BIN2_B27_PIN |
-		key_K4_B24_PIN |
-		key_A22_K3_PIN |
-		key_BSL_A18_PIN |
-		key_USE_key_B21_PIN |
 		can_TX_A12_PIN);
-    DL_GPIO_clearPins(GPIOB, LCD_RES_PIN |
+    DL_GPIO_clearPins(GPIOB, LED_B22_PIN |
+		LCD_RES_PIN |
 		LCD_DC_PIN |
 		LCD_CS_PIN |
 		LCD_BLK_PIN |
 		bianma2_read_B05_PIN |
-		TB6612_AIN1_B06_PIN |
 		TB6612_AIN2_B07_PIN |
-		chaosheng_Trig_B17_PIN |
-		key_K1_B00_PIN |
-		key_K2B_01_PIN);
-    DL_GPIO_enableOutput(GPIOB, LCD_RES_PIN |
+		TB6612_BIN2_B27_PIN |
+		chaosheng_Trig_B17_PIN);
+    DL_GPIO_enableOutput(GPIOB, LED_B22_PIN |
+		LCD_RES_PIN |
 		LCD_DC_PIN |
 		LCD_CS_PIN |
 		LCD_BLK_PIN |
 		bianma2_read_B05_PIN |
-		TB6612_AIN1_B06_PIN |
 		TB6612_AIN2_B07_PIN |
-		chaosheng_Trig_B17_PIN |
-		key_K1_B00_PIN |
-		key_K2B_01_PIN);
+		TB6612_BIN2_B27_PIN |
+		chaosheng_Trig_B17_PIN);
 
 }
 
@@ -682,6 +678,25 @@ SYSCONFIG_WEAK void SYSCFG_DL_UART_0_init(void)
     DL_UART_Main_setBaudRateDivisor(UART_0_INST, UART_0_IBRD_40_MHZ_9600_BAUD, UART_0_FBRD_40_MHZ_9600_BAUD);
 
 
+    /* Configure Interrupts */
+    DL_UART_Main_enableInterrupt(UART_0_INST,
+                                 DL_UART_MAIN_INTERRUPT_BREAK_ERROR |
+                                 DL_UART_MAIN_INTERRUPT_CTS_DONE |
+                                 DL_UART_MAIN_INTERRUPT_DMA_DONE_RX |
+                                 DL_UART_MAIN_INTERRUPT_DMA_DONE_TX |
+                                 DL_UART_MAIN_INTERRUPT_EOT_DONE |
+                                 DL_UART_MAIN_INTERRUPT_FRAMING_ERROR |
+                                 DL_UART_MAIN_INTERRUPT_NOISE_ERROR |
+                                 DL_UART_MAIN_INTERRUPT_OVERRUN_ERROR |
+                                 DL_UART_MAIN_INTERRUPT_PARITY_ERROR |
+                                 DL_UART_MAIN_INTERRUPT_RX |
+                                 DL_UART_MAIN_INTERRUPT_RXD_NEG_EDGE |
+                                 DL_UART_MAIN_INTERRUPT_RXD_POS_EDGE |
+                                 DL_UART_MAIN_INTERRUPT_RX_TIMEOUT_ERROR |
+                                 DL_UART_MAIN_INTERRUPT_TX);
+    /* Setting the Interrupt Priority */
+    NVIC_SetPriority(UART_0_INST_INT_IRQN, 0);
+
 
     DL_UART_Main_enable(UART_0_INST);
 }
@@ -712,6 +727,12 @@ SYSCONFIG_WEAK void SYSCFG_DL_K230_init(void)
     DL_UART_Main_setOversampling(K230_INST, DL_UART_OVERSAMPLING_RATE_16X);
     DL_UART_Main_setBaudRateDivisor(K230_INST, K230_IBRD_40_MHZ_9600_BAUD, K230_FBRD_40_MHZ_9600_BAUD);
 
+
+    /* Configure Interrupts */
+    DL_UART_Main_enableInterrupt(K230_INST,
+                                 DL_UART_MAIN_INTERRUPT_RX_TIMEOUT_ERROR);
+    /* Setting the Interrupt Priority */
+    NVIC_SetPriority(K230_INST_INT_IRQN, 2);
 
 
     DL_UART_Main_enable(K230_INST);
@@ -746,7 +767,22 @@ SYSCONFIG_WEAK void SYSCFG_DL_x_bujin_init(void)
 
     /* Configure Interrupts */
     DL_UART_Main_enableInterrupt(x_bujin_INST,
-                                 DL_UART_MAIN_INTERRUPT_RX_TIMEOUT_ERROR);
+                                 DL_UART_MAIN_INTERRUPT_BREAK_ERROR |
+                                 DL_UART_MAIN_INTERRUPT_CTS_DONE |
+                                 DL_UART_MAIN_INTERRUPT_DMA_DONE_RX |
+                                 DL_UART_MAIN_INTERRUPT_DMA_DONE_TX |
+                                 DL_UART_MAIN_INTERRUPT_EOT_DONE |
+                                 DL_UART_MAIN_INTERRUPT_FRAMING_ERROR |
+                                 DL_UART_MAIN_INTERRUPT_NOISE_ERROR |
+                                 DL_UART_MAIN_INTERRUPT_OVERRUN_ERROR |
+                                 DL_UART_MAIN_INTERRUPT_PARITY_ERROR |
+                                 DL_UART_MAIN_INTERRUPT_RX |
+                                 DL_UART_MAIN_INTERRUPT_RXD_NEG_EDGE |
+                                 DL_UART_MAIN_INTERRUPT_RXD_POS_EDGE |
+                                 DL_UART_MAIN_INTERRUPT_RX_TIMEOUT_ERROR |
+                                 DL_UART_MAIN_INTERRUPT_TX);
+    /* Setting the Interrupt Priority */
+    NVIC_SetPriority(x_bujin_INST_INT_IRQN, 0);
 
 
     DL_UART_Main_setRXInterruptTimeout(x_bujin_INST, 10);
@@ -774,16 +810,31 @@ SYSCONFIG_WEAK void SYSCFG_DL_y_bujin_init(void)
     DL_UART_Main_init(y_bujin_INST, (DL_UART_Main_Config *) &gy_bujinConfig);
     /*
      * Configure baud rate by setting oversampling and baud rate divisors.
-     *  Target baud rate: 9600
-     *  Actual baud rate: 9600.1
+     *  Target baud rate: 115200
+     *  Actual baud rate: 115190.78
      */
     DL_UART_Main_setOversampling(y_bujin_INST, DL_UART_OVERSAMPLING_RATE_16X);
-    DL_UART_Main_setBaudRateDivisor(y_bujin_INST, y_bujin_IBRD_80_MHZ_9600_BAUD, y_bujin_FBRD_80_MHZ_9600_BAUD);
+    DL_UART_Main_setBaudRateDivisor(y_bujin_INST, y_bujin_IBRD_80_MHZ_115200_BAUD, y_bujin_FBRD_80_MHZ_115200_BAUD);
 
 
     /* Configure Interrupts */
     DL_UART_Main_enableInterrupt(y_bujin_INST,
-                                 DL_UART_MAIN_INTERRUPT_RX_TIMEOUT_ERROR);
+                                 DL_UART_MAIN_INTERRUPT_BREAK_ERROR |
+                                 DL_UART_MAIN_INTERRUPT_CTS_DONE |
+                                 DL_UART_MAIN_INTERRUPT_DMA_DONE_RX |
+                                 DL_UART_MAIN_INTERRUPT_DMA_DONE_TX |
+                                 DL_UART_MAIN_INTERRUPT_EOT_DONE |
+                                 DL_UART_MAIN_INTERRUPT_FRAMING_ERROR |
+                                 DL_UART_MAIN_INTERRUPT_NOISE_ERROR |
+                                 DL_UART_MAIN_INTERRUPT_OVERRUN_ERROR |
+                                 DL_UART_MAIN_INTERRUPT_PARITY_ERROR |
+                                 DL_UART_MAIN_INTERRUPT_RX |
+                                 DL_UART_MAIN_INTERRUPT_RXD_NEG_EDGE |
+                                 DL_UART_MAIN_INTERRUPT_RXD_POS_EDGE |
+                                 DL_UART_MAIN_INTERRUPT_RX_TIMEOUT_ERROR |
+                                 DL_UART_MAIN_INTERRUPT_TX);
+    /* Setting the Interrupt Priority */
+    NVIC_SetPriority(y_bujin_INST_INT_IRQN, 1);
 
 
     DL_UART_Main_setRXInterruptTimeout(y_bujin_INST, 10);
