@@ -31,7 +31,7 @@ void LED_Init(void) {
 }
 
 void LED_On(void) {
-    DL_GPIO_setPins(LED_PORT, LEDq'q'q'z'z'z'z'z'z'z'z_PIN);
+    DL_GPIO_setPins(LED_PORT, LED_PIN);
 }
 
 void LED_Off(void) {

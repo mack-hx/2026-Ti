@@ -137,20 +137,20 @@ endif
 
 # Add inputs and outputs from these tool invocations to the build variables 
 EXE_OUTPUTS += \
-0.1.out 
+0.2.out 
 
 EXE_OUTPUTS__QUOTED += \
-"0.1.out" 
+"0.2.out" 
 
 
 # All Target
 all: $(OBJS) $(GEN_CMDS)
-	@$(MAKE) --no-print-directory -Onone "0.1.out"
+	@$(MAKE) --no-print-directory -Onone "0.2.out"
 
 # Tool invocations
-0.1.out: $(OBJS) $(GEN_CMDS)
+0.2.out: $(OBJS) $(GEN_CMDS)
 	@echo 'GNU Linker - building target: "$@"'
-	"/Users/m/ti/gcc_arm_none_eabi_9_2_1/bin/arm-none-eabi-gcc-9.2.1" @"device.opt"  -O2 -ffunction-sections -fdata-sections -g -gdwarf-3 -gstrict-dwarf -Wall -mthumb -mfloat-abi=soft -Wl,-Map,"0.1.map" -nostartfiles -static -Wl,--gc-sections -L"/Users/m/ti/mspm0_sdk_2_10_00_04/source/ti/driverlib/lib/gcc/m0p/mspm0g1x0x_g3x0x" -L"/Users/m/ti/mspm0_sdk_2_10_00_04/source" -L"/Volumes/Moving/work/01_code/01_Competition/01_ELE_com/2026-TI-Em/2026-TI/0.1" -L"/Volumes/Moving/work/01_code/01_Competition/01_ELE_com/2026-TI-Em/2026-TI/0.1/Debug/syscfg" -L"/Users/m/ti/gcc_arm_none_eabi_9_2_1/arm-none-eabi/lib/thumb/v6-m/nofp" -march=armv6-m -mthumb --specs=nosys.specs -o"0.1.out" $(ORDERED_OBJS)
+	"/Users/m/ti/gcc_arm_none_eabi_9_2_1/bin/arm-none-eabi-gcc-9.2.1" @"device.opt"  -O2 -ffunction-sections -fdata-sections -g -gdwarf-3 -gstrict-dwarf -Wall -mthumb -mfloat-abi=soft -Wl,-Map,"0.2.map" -nostartfiles -static -Wl,--gc-sections -L"/Users/m/ti/mspm0_sdk_2_10_00_04/source/ti/driverlib/lib/gcc/m0p/mspm0g1x0x_g3x0x" -L"/Users/m/ti/mspm0_sdk_2_10_00_04/source" -L"/Volumes/Moving/work/01_code/01_Competition/01_ELE_com/2026-TI-Em/2026-TI/0.2" -L"/Volumes/Moving/work/01_code/01_Competition/01_ELE_com/2026-TI-Em/2026-TI/0.2/Debug/syscfg" -L"/Users/m/ti/gcc_arm_none_eabi_9_2_1/arm-none-eabi/lib/thumb/v6-m/nofp" -march=armv6-m -mthumb --specs=nosys.specs -o"0.2.out" $(ORDERED_OBJS)
 	@echo 'Finished building target: "$@"'
 	@echo ' '
 
