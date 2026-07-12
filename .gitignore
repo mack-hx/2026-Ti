@@ -2,13 +2,14 @@
 LOG.md
 
 # --- CCS 构建产物 ---
-0.1/Debug/
+# 直接 ignore 文件类型, 不 ignore Debug/ 目录本身 (否则会把 CCS 工程配置一并忽略)
 *.out
 *.map
 *.o
 *.d
 *.obj
 *.bin
+*.dot
 
 # --- Editor ---
 .DS_Store
