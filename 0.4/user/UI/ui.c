@@ -409,12 +409,63 @@ static void MPU9250Page_OnKey(void) {
  * PD42S1 X/Y 轴硬件调试页
  * ============================================================================ */
 #define MOTOR_PULSES_PER_REV  51200L
-#define MOTOR_MOVE_ACCEL      100U
-#define MOTOR_MOVE_RPM        60U
 
-/* 单位为 0.1°: 1° → 3° → 5° → 10° → 0.1° → 循环。 */
+/* 移动步长档 (用户 2026-07-15 决定: 短按 K4 在 1°/3°/5°/10°/0.1° 间循环) */
 static const uint16_t kMotorStepTenths[] = { 10U, 30U, 50U, 100U, 1U };
 static uint8_t s_motor_step_index[2] = { 0U, 0U };
+
+/* 移动速度档 (RPM, 2026-07-15 决定: 长按 K2 循环切换, 默认 30 = 中等)
+ *   现有默认值 60/100 用户反馈"太快", 给 4 档, 默认取中间偏慢:
+ *     15 RPM  → 几乎爬行, 极限慢
+ *     30 RPM  → 慢, 适合手动调试 (默认)
+ *     60 RPM  → 中等 (旧默认值)
+ *     120 RPM → 快, 极限快
+ *   范围约束: PD42S1 协议 uint8 speed (限到 6000), 4 档都远低于上限 */
+static const uint16_t kMotorSpeedRpm[] = { 10U, 20U, 40U, 60U };
+static uint8_t s_motor_speed_index[2] = { 1U, 1U };   /* 默认 index=1 → 30 RPM (中等) */
+
+/* 移动加速度档 (accel, 0~200, 2026-07-15 决定: 长按 K1 循环切换, 默认 50 = 中等)
+ *   给 3 档, 默认取中间:
+ *     20  → 慢加减速, 适合慢速精细定位
+ *     50  → 中等, 平衡速度与冲击 (默认)
+ *     100 → 快, 旧默认值, 用于快速大行程
+ *   accel=0 是协议允许的"直接启动", 不用 */
+static const uint8_t kMotorAccel[] = { 15U, 30U, 50U };
+static uint8_t s_motor_accel_index[2] = { 1U, 1U };    /* 默认 index=1 → 50 (中等) */
+
+/* 度 → 脉冲 (有符号, 四舍五入; 一圈 51200 脉冲 = 360°)
+ * 范围: int32 ±2^31 ≈ ±42000 圈 (远超电机行程, 不会溢出) */
+#define MOTOR_DEG_TO_PULSES(deg)  \
+    ((int32_t)(((int64_t)(deg) * (int64_t)MOTOR_PULSES_PER_REV + 180LL) / 360LL))
+
+/* SM_zeroset 用到的左右限位参数 (用户 2026-07-15 决定, 硬件固定不变)
+ *   X 轴:  0 .. +1800°  (转 5 圈)
+ *   Y 轴: -90 .. +90°  (短行程, 不对称) */
+#define MOTOR_X_LEFT_DEG    0
+#define MOTOR_X_RIGHT_DEG   1800
+#define MOTOR_Y_LEFT_DEG    (-50)
+#define MOTOR_Y_RIGHT_DEG   80
+#define MOTOR_ZEROSET_TIMEOUT_MS  10000U   /* 见 stepmotor.h 注释, 10000~30000 推荐 */
+#define MOTOR_ZEROSET_AUTO_HOME   true     /* 驱动器下次上电自动回零 */
+#define MOTOR_ZEROSET_LIMIT_ON    true     /* 开启左右限位 (行程框住) */
+
+/* K4 长按 → 一次性把 X/Y 轴的左/右原点坐标 + 超时 + 上电自动回零 + 限位开关 6 帧写入
+ *   stepmotor.c 节流器 10ms 间隔串行发, 约 60ms 写完 */
+static void MotorPage_ZerosetDefaults(sm_motor_t motor) {
+    if (motor == SM_X) {
+        SM_zeroset(SM_X,
+                   MOTOR_DEG_TO_PULSES(MOTOR_X_LEFT_DEG),
+                   MOTOR_DEG_TO_PULSES(MOTOR_X_RIGHT_DEG),
+                   MOTOR_ZEROSET_TIMEOUT_MS,
+                   MOTOR_ZEROSET_AUTO_HOME,  MOTOR_ZEROSET_LIMIT_ON);
+    } else {
+        SM_zeroset(SM_Y,
+                   MOTOR_DEG_TO_PULSES(MOTOR_Y_LEFT_DEG),
+                   MOTOR_DEG_TO_PULSES(MOTOR_Y_RIGHT_DEG),
+                   MOTOR_ZEROSET_TIMEOUT_MS,
+                   MOTOR_ZEROSET_AUTO_HOME,  MOTOR_ZEROSET_LIMIT_ON);
+    }
+}
 
 static uint8_t MotorAxisIndex(sm_motor_t motor) {
     return (motor == SM_Y) ? 1U : 0U;
@@ -482,9 +533,8 @@ static void MotorPage_Render(sm_motor_t motor) {
     row_put(3, line, GREEN, BLACK);
 
     MotorPage_PutHexRows(4U, 'T', tx, tx_fired ? tx_len : 0U, CYAN);
-    snprintf(line, sizeof(line), "TXA:%c ADDR:%02X",
-             (motor == SM_X) ? 'X' : 'Y', (unsigned)((uint8_t)motor));
-    row_put(5, line, YELLOW, BLACK);
+    /* debug: ROW 5 TXA:X/Y ADDR:xx 已废弃, 用户 04:19 反馈不影响显示 — 删除 */
+    row_put(5, "", WHITE, BLACK);
 
     if (rx->function_code != 0U) {
         rx_raw[rx_len++] = PD42S1_FRAME_HEAD;
@@ -499,16 +549,47 @@ static void MotorPage_Render(sm_motor_t motor) {
     MotorPage_PutHexRows(6U, 'R', rx_raw, rx_len,
                          (rx_len > 0U && rx->error_code == PD42_ACK_OK) ? GREEN : RED);
 
-    row_put(8, "K3:R/H K4:STEP", GRAY, BLACK);
+    /* ROW 8: 当前速度档 + 加速度档 (用户 2026-07-15 决定, 替换原 "K3:R/H K4:STEP")
+     *   格式: "S:30RPM A:50 K3:R/H" = 16 字符 (YELLOW 当前档 + 灰色按键提示)
+     *   - "S:30RPM" = 7 字符: 速度当前档 (RPM), 长按 K2 循环
+     *   - " A:50"   = 5 字符: 加速度当前档,       长按 K1 循环
+     *   - " K3:R/H" = 7 字符: K3 短按读位置 / 长按回零 (剩余按键提示简短化, 不再挤 K4 STEP 因为 K4 短按切步长语义用户已熟悉) */
+    uint8_t s_idx = s_motor_speed_index[axis];
+    uint8_t a_idx = s_motor_accel_index[axis];
+    snprintf(line, sizeof(line), "S:%3uRPM A:%3u",  /* "S: 30RPM A: 50" = 13 字符 */
+             (unsigned)kMotorSpeedRpm[s_idx < 4U ? s_idx : 0U],
+             (unsigned)kMotorAccel[a_idx < 3U ? a_idx : 0U]);
+    row_put(8, line, YELLOW, BLACK);
 }
 
 static void MotorPage_OnKey(sm_motor_t motor) {
+    uint8_t axis = MotorAxisIndex(motor);
+    uint16_t speed_rpm = kMotorSpeedRpm[s_motor_speed_index[axis] < 4U
+                                          ? s_motor_speed_index[axis] : 0U];
+    uint8_t  accel     = kMotorAccel[s_motor_accel_index[axis] < 3U
+                                       ? s_motor_accel_index[axis] : 0U];
+
+    /* K1 down: 正转 (用户 2026-07-15 决定保留原语义);
+     * K1 long_press: 切加速度档 (3 档: 20/50/100, 默认 50 = 中等)
+     *   长按不影响 down: down 在按下沿触发, long_press 在按住超时后触发,
+     *   二者不会冲突. */
     if (key(1, down)) {
-        SM_Move(motor, R, MOTOR_MOVE_ACCEL, MOTOR_MOVE_RPM, MotorStepPulses(motor));
+        SM_Move(motor, R, accel, speed_rpm, MotorStepPulses(motor));
         UI_ForceRedraw();
     }
+    if (key(1, long_press)) {
+        s_motor_accel_index[axis] = (uint8_t)((s_motor_accel_index[axis] + 1U) % 3U);
+        UI_ForceRedraw();
+    }
+    /* K2 down: 反转 (用户 2026-07-15 决定保留原语义);
+     * K2 long_press: 切速度档 (4 档: 15/30/60/120 RPM, 默认 30 = 中等)
+     *   长按不影响 down: 同 K1. */
     if (key(2, down)) {
-        SM_Move(motor, L, MOTOR_MOVE_ACCEL, MOTOR_MOVE_RPM, MotorStepPulses(motor));
+        SM_Move(motor, L, accel, speed_rpm, MotorStepPulses(motor));
+        UI_ForceRedraw();
+    }
+    if (key(2, long_press)) {
+        s_motor_speed_index[axis] = (uint8_t)((s_motor_speed_index[axis] + 1U) % 4U);
         UI_ForceRedraw();
     }
     if (key(3, down)) {
@@ -519,9 +600,15 @@ static void MotorPage_OnKey(sm_motor_t motor) {
         SM_zero(motor, HM);
         UI_ForceRedraw();
     }
-    if (key(4, down)) {
-        uint8_t axis = MotorAxisIndex(motor);
+    /* K4 短按: 松开时切精度档 (不能用 down, 否则 K4 长按会先发 down 把档切了)
+     * K4 长按: 6 帧配置序列 - 写左/右原点 + 超时 + 上电自动回零 + 限位开关 + 落盘
+     *          左右限位值由硬件常量决定 (X: 0..1800°, Y: -105..75°) */
+    if (key(4, up)) {
         s_motor_step_index[axis] = (uint8_t)((s_motor_step_index[axis] + 1U) % 5U);
+        UI_ForceRedraw();
+    }
+    if (key(4, long_press)) {
+        MotorPage_ZerosetDefaults(motor);
         UI_ForceRedraw();
     }
 }

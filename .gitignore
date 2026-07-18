@@ -1,15 +1,27 @@
 # --- 本机私有 ---
 LOG.md
 
-# --- CCS 构建产物 ---
-# 直接 ignore 文件类型, 不 ignore Debug/ 目录本身 (否则会把 CCS 工程配置一并忽略)
+# --- CCS 构建产物 (全部忽略) ---
 *.out
 *.map
 *.o
 *.d
 *.obj
 *.bin
+*.d_raw
 *.dot
+.clangd/
+Debug/
+.ccsObjs.opt
+.device.lds.genlibs
+.device.opt
+.device_linker.lds
+.makefile
+.objects.mk
+.sources.mk
+.subdir_rules.mk
+.subdir_vars.mk
+.Event.dot
 
 # --- Editor ---
 .DS_Store

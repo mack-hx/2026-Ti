@@ -9,9 +9,11 @@
 - **赛事**：2026 TI 电赛（嵌入式赛道）
 - **平台**：MSPM0G3507 (LQFP-64)，TI MSPM0 SDK 2.10.00.04
 - **工程版本**:
-- `0.4/` (**当前最新, 实验田; 0.3 的快照 + 后续改动都在这里**)
- - `0.3/` (**稳态分支, 锁住不再改; 0.4 出问题时的回退基准**)
- - `0.1/` / `0.2/` (历史版本, 不再改动)
+- `0.6/` (**当前最新, 实验田; 从 0.5 迭代, 基于 win_workspace_ccs 同步代码**)
+- `0.5/` (**前一版, 锁住不再改; 0.6 出问题时的回退基准**)
+- `0.4/` (**稳态分支, 锁住不再改**)
+- `0.3/` (**稳态分支, 锁住不再改**)
+- `0.1/` / `0.2/` (历史版本, 不再改动)
 - **IDE**：CCS (Code Composer Studio)，SysConfig 图形化配置
 - **主机**：macOS 15 (darwin 25.5.0)
 - **注：每次修改仅修改最新版本的文件**
@@ -28,7 +30,7 @@
 
 写 UI 时所有 `snprintf` / `LCD_ShowString` 必须按 16 字符上限规划，**不许超界**（超出会显示到下一行或被截断, 且无运行时检查）。
 
-`ROW_Y(n) = n * 16`（定义在 `0.4/user/UI/ui.h`）。当前布局参考 `0.4/user/UI/ui.c`（motor 页）：ROW 0..5（y=0/16/32/48/64/80）+ **页脚 ROW 9 y=144** 显示 `P<n>/<N> <name>`。新增页插入 `pages[]` 注册表，K5 切页详见 §6。
+`ROW_Y(n) = n * 16`（定义在 `0.6/user/UI/ui.h`）。当前布局参考 `0.6/user/UI/ui.c`（motor 页）：ROW 0..5（y=0/16/32/48/64/80）+ **页脚 ROW 9 y=144** 显示 `P<n>/<N> <name>`。新增页插入 `pages[]` 注册表，K5 切页详见 §6。
 
 **注**：早期版本用 18 px/行（含 2 px 行间距），只能挤 9 行——已统一改为 16 px/行 1:1 满屏。历史截图上看到的"行间空隙"实际是 `LCD_Fill` 留的，不是字体自带。
 
@@ -120,7 +122,7 @@ q
 ## 6. 代码架构
 
 ```
-0.4/
+0.6/
 ├── main.c                 # 入口：init + while(1) K5 切页 + 派发 pages[g_page].on_key → SM_Tick → UI_Render
 ├── empty.syscfg           # SysConfig 配置源（**不要手改，时钟和外设都在这里**）
 ├── system/                # 系统层
@@ -128,7 +130,7 @@ q
 ├── user/                  # 用户层 (经常改的代码)
 │   └── UI/                # 多页面 LCD 渲染 (UI_Init / UI_Render + pages[])
 │       ├── ui.h           # page_t 框架: name + render + on_key + footer_hook
-│       └── ui.c           # pages[] 注册表 + MenuPage / EmptyPage / MotorX/YPage / HuiduTBPage / TB6612Page / MPU9250Page 实现
+│       └── ui.c           # pages[] 注册表 + MenuPage / MainPage / Task1..5Page / MotorX/YPage / HuiduTBPage / MPU9250Page 实现
 └── Hardware/              # 外设驱动层
     ├── KEY/               # 按键事件型 API
     ├── LED/               # LED 控制
@@ -149,7 +151,7 @@ q
 **多页面 UI 架构** (用户 2026-07-15 重构: 菜单 + 详情页两层):
 
 - **两层状态**: `g_page == 0` = 菜单页; `g_page ∈ [1, PAGE_COUNT-1]` = 详情页
-- 每页注册到 `pages[]` (`0.4/user/UI/ui.c`):
+- 每页注册到 `pages[]` (`0.6/user/UI/ui.c`):
   ```c
   typedef struct {
       const char *name;          // 页脚功能名 (缺省页脚 "P<n>/<N> <name>" 用)
@@ -158,33 +160,60 @@ q
       void      (*footer_hook)(void); // NULL → 缺省页脚; 否则页自管 ROW 9 (TB6612 页用)
   } page_t;
   ```
-- **当前 pages[] 顺序** (PAGE_COUNT=10):
+
+**`ui.c` 文件结构 (0.5 整理后)**:
+
+1. **顶部参数表** (改这里调参, 不接触底层 API)
+   - `kMotorStepTenths[]` / `kMotorSpeedRpm[]` / `kMotorAccel[]`: 移动档位
+   - `MOTOR_*_LEFT_DEG` / `MOTOR_*_RIGHT_DEG`: X/Y 轴零点行程
+   - `MOTOR_*_DEFAULT_IDX`: 上电默认档位
+2. **行级脏位渲染框架** (`row_put / row_flush / mark_all_rows_dirty`)
+3. **页面分块** (`MenuPage` / `MainPage` / `Task1..5Page` / `MotorX/YPage` / `HuiduTBPage` / `MPU9250Page`)
+   - 每块 = render + on_key 两个 static 函数 + 必要的 helper
+   - 改页行为: 找对应块, 改 Key/Display 即可
+4. **`pages[]` 注册表** (顺序 = 菜单显示顺序)
+5. **公开 API** (`UI_Init / UI_Render / UI_ForceRedraw`)
+
+**调参原则** (满足"修改仅修改参数"):
+- 改 LCD 显示: 找对应 `*Page_Render` 函数改 `row_put` 行
+- 改按键语义: 找对应 `*Page_OnKey` 函数
+- 改档位: 顶部 `kMotorXxx[]` 表
+- 改默认档: 顶部 `MOTOR_*_DEFAULT_IDX`
+- 改 X/Y 轴行程: 顶部 `MOTOR_X/Y_LEFT/RIGHT_DEG`
+- 改菜单项: `pages[]` 加一行 + `kMenuNames[]` 加字符串 + `MENU_ITEM_COUNT` 加 1
+- **不要改 Hardware 驱动层**: 那是协议 / 寄存器层, 改它要重新回归测试
+- **当前 pages[] 顺序** (PAGE_COUNT=11):
  - `[0]` MenuPage 菜单页 (g_page=0 入口, K1/K2 切选中, K5 进入)
- - `[1..5]` Task1..5Page 题目页 1..5 (placeholder, "to be added")
- - `[6]` MotorXPage PD42S1 **X 轴** (UART2) 硬件调试
- - `[7]` MotorYPage PD42S1 **Y 轴** (UART3) 硬件调试
- - `[8]` HuiduTBPage 灰度 + TB6612 编码电机
- - `[9]` MPU9250Page 9 轴 IMU
-- **菜单项表 kMenuNames[9]**: `TASK1 / TASK2 / TASK3 / TASK4 / TASK5 / MOTOR-X / MOTOR-Y / HUITB / MPU9250` (`g_menu_sel=1..9`, 上电默认 1)
+ - `[1]` MainPage 主页 (上电默认进入, 所有外设关键状态总览, K5 切到菜单, K1-K4 no-op)
+ - `[2..6]` Task1..5Page 题目页 1..5 (placeholder, "to be added")
+ - `[7]` MotorXPage PD42S1 **X 轴** (UART2) 硬件调试
+ - `[8]` MotorYPage PD42S1 **Y 轴** (UART3) 硬件调试
+ - `[9]` HuiduTBPage 灰度 + TB6612 编码电机
+ - `[10]` MPU9250Page 9 轴 IMU
+- **菜单项表 kMenuNames[9]**: `TASK1 / TASK2 / TASK3 / TASK4 / TASK5 / MOTOR-X / MOTOR-Y / HUITB / MPU9250` (`g_menu_sel=2..10`, 上电默认 2 = TASK1)
 - **K5 路由** (main.c 集中处理):
- - **详情页** K5 → 返回菜单 (`g_page = 0`) + 按页停轴 (`g_page==6→SM_Stop(SM_X)`, `g_page==7→SM_Stop(SM_Y)`) + `TB6612_Stop(A/B)`
+ - **详情页** K5 → 返回菜单 (`g_page = 0`) + 按页停轴 (`g_page==7→SM_Stop(SM_X)`, `g_page==8→SM_Stop(SM_Y)`) + `TB6612_Stop(A/B)`
  - **菜单页** K5 → 进入选中项 (`g_page = g_menu_sel`)
 - **K1/K2 路由**:
- - **菜单页** K1 → 选中上移 (1→9 循环); K2 → 选中下移 (1→9 循环); 详见 `0.4/main.c`
+ - **菜单页** K1 → 选中上移 (2→10 循环); K2 → 选中下移 (2→10 循环); 详见 `0.6/main.c`
  - **详情页** K1~K4 → 派发 `pages[g_page].on_key()` (菜单页 on_key 是 no-op, 详情页 K1/K2 不会被菜单抢走)
 - **菜单页布局** (16 字符/行, 9 项会自动滚动):
  - ROW 0   `   == MENU ==    ` (标题, 白字深蓝底, 严格 15 字符居中填 ' ')
  - ROW 1..8 `>TASK1 / TASK2 / ... / MPU9250` (8 项菜单, 选中项前缀 `>` + YELLOW, 未选 WHITE)
- - ROW 9   `P1/10 MENU` 页脚
+ - ROW 9   `P1/11 MENU` 页脚
 - **菜单项自动滚动**: 当选中项 ≥ 6 项时, `first = MAX(0, sel-5)`, 窗口上推让选中项始终可见 (sel=9 → ROW 1..8 全部移到末尾 8 项)
 - UI_Render 每帧: `pages[g_page].render()` → 若 `footer_hook` 非空则调之,否则写缺省 `P<cur+1>/<PAGE_COUNT> <name>` → `row_flush`
 - 加新详情页: 实现 `render + on_key` (+ 可选 `footer_hook`), 在 `pages[]` 表里加一行, `kMenuNames[]` 加对应字符串, `MENU_ITEM_COUNT` 加 1
 
-**main.c 当前主循环**:
+**main.c 当前主循环** (0.5 整理后):
 
 - 上电 `SM_Init()` 两轴使能 + 通信位置模式（**不清零、不落盘**, 零点在上位机已设）
-- `while(1)`: K5 down 分流 (菜单页/详情页) → 菜单页 K1/K2 切 `g_menu_sel` → `pages[g_page].on_key()` (K1~K4 派发) → `SM_Tick()` → `Huidu_Task()` → `MPU9250_Task()` → `UI_Render()`
-- motor 页 (MotorXPage / MotorYPage): K3 短按 = `SM_ReadPosition` (刷新显示); K3 长按 = `SM_zero(motor, HM)` 触发驱动器回零 (上位机已配零点); K1/K2 按下 = `SM_Move(motor, dir, 100, 60, step_pulses)` (step_pulses 来自 `kMotorStepTenths[s_motor_step_index]`); K1/K2 松开 = `SM_Stop` + `SM_ReadPosition`; K4 循环切换移动精度 (1° → 3° → 5° → 10° → 0.1°)
+- `while(1)`:
+  1. `handle_navigation_keys()` — K5/K1/K2 切页路由 (封装在 main.c)
+  2. `pages[g_page].on_key()` — K1~K4 派发 (ui.c 各页实现)
+  3. `SM_Tick() / Huidu_Task() / MPU9250_Task()` — 模块 Tick
+  4. `UI_Render()` — 按内容 hash 刷 LCD
+- motor 页 (MotorXPage / MotorYPage): K3 短按 = `SM_ReadPosition` (刷新显示); K3 长按 = `SM_zero(motor, HM)` 触发驱动器回零 (上位机已配零点); K1/K2 按下 = `SM_Move(motor, dir, accel, speed_rpm, step_pulses)` (step_pulses 来自 `kMotorStepTenths[s_motor_step_index]`, accel/speed 来自 `kMotorAccel[s_motor_accel_index]` + `kMotorSpeedRpm[s_motor_speed_index]`); K1/K2 松开 = `SM_Stop` + `SM_ReadPosition`; K4 循环切换移动精度 (1° → 3° → 5° → 10° → 0.1°); 长按 K1 = 切加速度档, 长按 K2 = 切速度档
 
 ---
 
@@ -192,7 +221,7 @@ q
 
 ## 7. 应用层 API（速查）
 
-详细用法见 `0.4/Hardware/PD42S1/stepmotor.h` 顶部注释。下面只列"做什么、几个参数"。
+详细用法见 `0.6/Hardware/PD42S1/stepmotor.h` 顶部注释。下面只列"做什么、几个参数"。
 
 ### 7.1 运动 API（一次调用 = 一个意图）
 
@@ -218,9 +247,9 @@ q
 
 | API                                                   | 用途                                                                                           |
 | ----------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `SM_zeroset(motor, origin, timeout_ms, auto_home_on)` | **已停用 (上位机配零点)**: `stepmotor.c` 仍保留入口; 0.4 调试页 K3 短按/长按 不再调此 API |
+| `SM_zeroset(motor, left_pulses, right_pulses, timeout_ms, auto_home_on, limit_on)` | **6 帧配置**: 串行 0x90(左限位=left_pulses) → 0x98(右限位=right_pulses) → 0x95(timeout_ms) → 0x97(auto_home_on) → 0x99(limit_on) → 0x04 SaveParams 落盘 (节流器 10ms 间隔, 约 60ms). **调用方直接传左/右脉冲**, 不再读当前位置. 0.4 调试页 K4 长按触发, X 轴用 `0..1800°`, Y 轴用 `-105..75°` (ui.c `MotorPage_ZerosetDefaults`) |
 
-### 7.6 双轴 PD42S1 收发路由 (`0.4/Hardware/PD42S1/pd42s1.h`)
+### 7.6 双轴 PD42S1 收发路由 (`0.6/Hardware/PD42S1/pd42s1.h`)
 
 - **每轴独立状态**: `s_rx_frame[2]`, `s_frame_ready[2]`, `s_rx_buffer[2][]`, `s_rx_index[2]`, `s_tx_buffer[2][]`, `s_tx_buffer_len[2]`, `s_tx_fired[2]`
 - `PD42_AXIS_COUNT=2`, `PD42_X_INDEX=0`, `PD42_Y_INDEX=1`, `axis_index(addr) ∈ {0,1}`
@@ -236,7 +265,7 @@ q
 
 ### 7.3 按键 API（事件型）
 
-`0.4/Hardware/KEY/key.h`，状态机由 `system/clock.c: SysTick_Handler` 每 1ms 推进：
+`0.6/Hardware/KEY/key.h`，状态机由 `system/clock.c: SysTick_Handler` 每 1ms 推进：
 
 ```c
 void KEY_Init(void);                                    // 上电一次
@@ -271,33 +300,95 @@ if (g_page == 0U) {
 pages[g_page].on_key();  /* K1~K4 派发 (菜单页 on_key 是 no-op) */
 ```
 
-当前 motor 页 (MotorXPage / MotorYPage 共享 `MotorPage_*`) 的 K1~K4 语义 (`0.4/user/UI/ui.c: MotorPage_OnKey`):
+当前 motor 页 (MotorXPage / MotorYPage 共享 `MotorPage_*`) 的 K1~K4 语义 (`0.6/user/UI/ui.c: MotorPage_OnKey`):
 
 ```c
-const int32_t step_pulses = MotorStepPulses(s_motor_step_index);   // 0.1° → 脉冲 (单位换算见下)
-if (key(1, down) && !key_pressed(2))      SM_Move(motor, R, MOTOR_MOVE_ACCEL, MOTOR_MOVE_RPM, step_pulses);
-else if (key(2, down) && !key_pressed(1)) SM_Move(motor, L, MOTOR_MOVE_ACCEL, MOTOR_MOVE_RPM, step_pulses);
+const int32_t step_pulses = MotorStepPulses(s_motor_step_index);     // 0.1° → 脉冲 (单位换算见下)
+const uint16_t speed_rpm = kMotorSpeedRpm[s_motor_speed_index];      // 当前速度档 (RPM, 见下)
+const uint8_t  accel     = kMotorAccel[s_motor_accel_index];          // 当前加速度档 (见下)
+if (key(1, down) && !key_pressed(2))      SM_Move(motor, R, accel, speed_rpm, step_pulses);
+else if (key(2, down) && !key_pressed(1)) SM_Move(motor, L, accel, speed_rpm, step_pulses);
 else if (key(1, up) || key(2, up))        { SM_Stop(motor); SM_ReadPosition(motor); }
 else if (key(3, down))                    SM_ReadPosition(motor);                     // 短按: 刷新位置/度数显示
 else if (key(3, long_press))              SM_zero(motor, HM);                         // 长按: 驱动器回零 (上位机已配零点)
-else if (key(4, down))                    s_motor_step_index = (s_motor_step_index + 1U) % 5U;   // 1°→3°→5°→10°→0.1°
+else if (key(1, long_press))              s_motor_accel_index = (s_motor_accel_index + 1) % 3;  // 长按 K1: 切加速度档 (20→50→100→20)
+else if (key(2, long_press))              s_motor_speed_index = (s_motor_speed_index + 1) % 4;  // 长按 K2: 切速度档   (15→30→60→120→15)
+else if (key(4, up))                      s_motor_step_index = (s_motor_step_index + 1U) % 5U;   // 1°→3°→5°→10°→0.1° (松开时切, 避免被长按误触发)
+else if (key(4, long_press))              MotorPage_ZerosetDefaults(motor);  // 长按: 6 帧配置 (X→0..1800° / Y→-105..75°, auto_home+限位+落盘, 详情见 0.6/user/UI/ui.c)
 ```
 
 **移动精度档** `kMotorStepTenths[] = {10, 30, 50, 100, 1}` (单位 0.1°, 默认 s_motor_step_index=0 → 10×0.1°=1°):
 - `step_pulses = (tenths * MOTOR_PULSES_PER_REV + 1800) / 3600` (四舍五入, MOTOR_PULSES_PER_REV=51200)
 - 1° ≈ 142 脉冲; 0.1° ≈ 14 脉冲
 
-**MotorX / MotorY 页面布局** (16 字符/行, 9 行内容 + 页脚):
-- ROW 0   `M:X/Y k:1 1 1 1` (标识轴 + 键位)
-- ROW 1   `POS:+12345 pul` 当前位置 [脉冲, int32, 有符号]
-- ROW 2   `DEG:+123.45   ` 当前位置 [度, 0.05°/bit → 2 位小数]
-- ROW 3   `TX:C5 01 A8 00` 本帧 TX 头 4 字节 hex
-- ROW 4   `RX:C5 01 2A 01` 本帧 RX 头 4 字节 hex (无应答时显示 `RX:---- --- ---`)
-- ROW 5..7 留空 (`LCD_Fill` 留白)
-- ROW 8   `STEP:1.0°     ` 当前档号 (1.0° / 3.0° / 5.0° / 10.0° / 0.1°)
-- ROW 9   缺省页脚 `P<n>/10 MOTOR-X` 或 `MOTOR-Y` (TB6612 页 `footer_hook` 接管 ROW 9)
+**移动速度档** `kMotorSpeedRpm[] = {15, 30, 60, 120}` (RPM, 默认 s_motor_speed_index=1 → 30 = 中等, 用户 2026-07-15 决定: 旧默认 60/100 "太快"):
+- 15 RPM  → 几乎爬行, 极限慢
+- 30 RPM  → 慢, 适合手动调试 (**默认**)
+- 60 RPM  → 中等 (旧默认值)
+- 120 RPM → 快, 极限快
+- 长按 K2 循环切换, ROW 8 实时显示当前档
 
-### 7.4 TB6612 API (`0.4/Hardware/TB6612/tb6612.h`)
+**移动加速度档** `kMotorAccel[] = {20, 50, 100}` (accel, 0~200, 默认 s_motor_accel_index=1 → 50 = 中等, 用户 2026-07-15 决定):
+- 20  → 慢加减速, 适合慢速精细定位
+- 50  → 中等, 平衡速度与冲击 (**默认**)
+- 100 → 快, 旧默认值, 用于快速大行程
+- 长按 K1 循环切换, ROW 8 实时显示当前档
+
+**Main 页面布局** (主页, 上电默认页, 16 字符/行硬约束, `0.6/user/UI/ui.c: MainPage_Render`):
+- ROW 0   `k:%u %u %u %u %u`           5 路按键当前电平 (1=松开, 0=按下)
+- ROW 1   `LED%u BZ%u LCD ON`          LED 当前电平 + Buzzer + LCD 初始化固定 ON
+- ROW 2   `SM-X:%-+6ld E:%c%c`         PD42S1 X 轴位置 (±99999 截断) + ERR 字节 ("01"=OK, "--"=无帧)
+- ROW 3   `SM-Y:%-+6ld E:%c%c`         PD42S1 Y 轴
+- ROW 4   `ENC L%+-5ld R%+-5ld`        编码电机 L/R 累计值 (各占 5 字符)
+- ROW 5   `HDb%u%u%u%u%u%u%u%u %s`     灰度二值化 8 位 + 当前模式 (MUX/5GP/8GP)
+- ROW 6   `TB:A%2u%% B%2u%% >%c`       TB6612 两路 PWM 档 (20/40/60%) + selected (>A/>B)
+- ROW 7   `MPU%02X %02X %s T%dC`       MPU9250 WHO MPU/WHO MAG/ok + 内部温度 (整数 °C)
+- ROW 8   `UART0:%c UART1:%c`          UART0/UART1 待消费 RX 包数 (- = 无包, 数字 = 待消费数)
+- ROW 9   缺省页脚 `P2/11 main`
+
+**Main 页按键语义**:
+- K1~K4 → no-op (状态在 ROW 0 自然显示, 不消费事件)
+- K5   → main.c 切回菜单
+
+**MotorX / MotorY 页面布局** (16 字符/行, 9 行内容 + 页脚):
+- ROW 0   `k:1 1 1 1 1`        键位 (`row_put_keys`)
+- ROW 1   `AX:X STEP:1.0`     标识轴 + 当前步长档 (1° / 3° / 5° / 10° / 0.1°)
+- ROW 2   `POS:+12345    `    当前位置 [脉冲, int32, 有符号]
+- ROW 3   `DEG:+123.45   `    当前位置 [度, 0.05°/bit → 2 位小数]
+- ROW 4   `RUN>+60RPM`        **TX 解析**: 功能名 + 关键参数 (`MotorPage_FormatParsed`)
+- ROW 5   `<hex 兜底>`         TX 解析失败时原始 hex (前 7 字节), 成功 → 留空
+- ROW 6   `POS+3162130 01`    **RX 解析**: 功能名 + 关键参数 + ERR 字节
+- ROW 7   `<hex 兜底>`         RX 解析失败时原始 hex (前 7 字节), 成功 → 留空
+- ROW 8   `S: 30RPM A: 50`    **当前速度档 + 加速度档** (YELLOW, 长按 K1/K2 切换; 替代原 "K3:R/H K4:STEP" 提示)
+- ROW 9   缺省页脚 `P<n>/10 MOTOR-X` 或 `MOTOR-Y`
+
+**MotorPage TX/RX 协议解析** (`0.6/user/UI/ui.c`, 用户 2026-07-15 决定):
+- TX/RX 各占两行 (ROW 4+5 / ROW 6+7), 识别成功时只占第 1 行, hex 行清空
+- 识别失败时第 1 行显示 `TX?` / `RX?`, 第 2 行落完整原始 hex (永不丢信息)
+- 没收到帧时第 1 行显示 `TX----` / `RX----`, 第 2 行清空
+- 已识别功能码解析示例 (完整表见 `MotorPage_FuncName` + `MotorPage_FormatParsed`):
+
+| FUNC  | TX 例                         | RX 例                         |
+|-------|--------------------------------|--------------------------------|
+| 0x2A  | `RDPOS`                        | `POS+3162130 01` (POS + ERR)   |
+| 0xF1  | `RUN>+60RPM` (dir + float RPM) | —                              |
+| 0xF2/F3| `MOVE+60x142`                 | —                              |
+| 0xFA  | `EN=ON` / `EN=OFF`            | `EN=ON` (data[4] 同样)         |
+| 0x90/98| `LORG+16000` / `RORG+16000`    | —                              |
+| 0x91  | `LIM0 >256/100`                | —                              |
+| 0x92  | `HMS` / `HMN` / `HMM` (mode)   | —                              |
+| 0x95  | `ZSTMO10s` (ms→秒, = 10000ms)  | —                              |
+| 0x97/99| `AUTOH=ON` / `LIMSW=ON`        | —                              |
+| 0x29  | —                              | `RPM+60 01` (+ ERR)            |
+| 0x62  | `SMODEPOS` / `SMODESPD`        | —                              |
+| 0x65/66| `SMIC=8192` / `SCUR=500mA`     | —                              |
+| 0x04/F8/FC 等 | `SAVE`/`ZERO`/`STOP`     | —                              |
+
+- 未识别功能码 → ROW 5/7 直接落原始 hex (例 `C5 01 AA 55 66 77 88`); ROW 4/6 显示 `TX?`/`RX?`
+- 数据节均按 PD42S1 协议"大端" (手册规定), float 用 IEEE754 BE (`MotorPage_BytesFloatBE`)
+- 颜色: 解析成功 YELLOW (TX) / GREEN OK / RED 错 (RX); 占位/兜底灰
+
+### 7.4 TB6612 API (`0.6/Hardware/TB6612/tb6612.h`)
 
 2 路有刷直流电机 (电机 A: AIN1=PB6 / AIN2=PB7 / PWMA=PB13; 电机 B: BIN1=PB23 / BIN2=PB27 / PWMB=PA25)。编码器 A=PA28/PA31, 编码器 B=PB4/PB5 (用 `Encoder_GetCountA/B()` 读位置)。
 
@@ -321,7 +412,7 @@ PWM: TIMG12 / CCP0+CCP1, 周期 2000 @ 40MHz = 20kHz, 占空比 = compare/2000�
 | 1   | 0   | 正转   | `TB_DIR_FWD` |
 | 1   | 1   | 刹车   | Init/Stop    |
 
-**TB6612 页按键语义** (`0.4/user/UI/ui.c: TB6612Page_OnKey`):
+**TB6612 页按键语义** (`0.6/user/UI/ui.c: TB6612Page_OnKey`):
 | 按键       | 动作                                                            |
 | ---------- | -------------------------------------------------------------- |
 | K2 down/up | 两电机同时 `Run(FWD)` / `Stop`                                   |
@@ -344,7 +435,7 @@ PWM: TIMG12 / CCP0+CCP1, 周期 2000 @ 40MHz = 20kHz, 占空比 = compare/2000�
 
 **ROW 9 由 `footer_hook` 接管**: TB6612 页注册时 `footer_hook=TB6612Page_Footer`, `UI_Render` 末尾检测到非 NULL 就调它 (里面 `row_put(9, ...)`), 其他页走缺省 `P<n>/<N> <name>`。
 
-### 7.5 MPU9250 API (`0.4/Hardware/MPU9250/mpu9250.h`)
+### 7.5 MPU9250 API (`0.6/Hardware/MPU9250/mpu9250.h`)
 
 9 轴 IMU (加速度 + 陀螺 + 磁力计), I2C0 controller, **不依赖 NVIC 中断** (driverlib 走纯阻塞 + BUSY 位等 STOP)。
 
@@ -477,8 +568,36 @@ temp [°C]  = raw / 340 + 21
 
 ### 9.4 目录约定
 
-- `0.4/system/` 系统层 / `0.4/user/` 用户层 / `0.4/Hardware/<模块名>/` 驱动层
+- `0.6/system/` 系统层 / `0.6/user/` 用户层 / `0.6/Hardware/<模块名>/` 驱动层
 - `LOG.md` 不进 git（私人日志）；`AGENTS.md` 进 git（共享）
+
+### 9.5 代码迭代流程（mac → win + mac 双目标）
+
+**来源**：`mac 0.6/`（mac 上的最新代码）
+
+**目标**：两个目录都要同步更新
+1. `win_workspace_ccs/0.6/`（Windows CCS 项目配置 + 编译产物）
+2. `mac 0.6/`（mac 上的 CCS 项目）
+
+**流程**：
+```
+1. 从 mac 0.6/ 获取源代码（.c .h .syscfg）
+2. 复制到 win_workspace_ccs/0.6/（替换旧文件，保留 CCS 配置）
+3. 复制到 mac 0.6/（更新 mac 项目）
+4. 如果有新增文件（.c .h），需要在 CCS 中手动 Add 到项目
+```
+
+**Debug 配置**：
+- `.launches/` 目录在 CCS 中不会被自动复制
+- 新建工程后需要手动创建 `.launches/0.6 Debug.launch`（参考 win_workspace_ccs/0.6/.launches/）
+
+**保留文件**（不覆盖）：
+- `.cproject` / `.ccsproject`
+- `.project`
+- `.settings/` 目录
+- `Debug/` 目录
+- `.launches/` 目录
+- `targetConfigs/` 目录
 
 ---
 

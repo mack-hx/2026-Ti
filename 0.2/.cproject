@@ -41,6 +41,12 @@
                                     <listOptionValue value="${PROJECT_ROOT}/${ConfigName}"/>
                                     <listOptionValue value="${PROJECT_ROOT}/Hardware/LCD_Hardware_SPI"/>
                                     <listOptionValue value="${PROJECT_ROOT}/Hardware/PD42S1"/>
+                                    <listOptionValue value="${PROJECT_ROOT}/Hardware/Encoder"/>
+                                    <listOptionValue value="${PROJECT_ROOT}/Hardware/UART_Host"/>
+                                    <listOptionValue value="${PROJECT_ROOT}/Hardware/Buzzer"/>
+                                    <listOptionValue value="${PROJECT_ROOT}/Hardware/TMC2209"/>
+                                    <listOptionValue value="${PROJECT_ROOT}/Hardware/Huidu"/>
+                                    <listOptionValue value="${PROJECT_ROOT}/Hardware/TB6612"/>
                                     <listOptionValue value="${COM_TI_MSPM0_SDK_INSTALL_DIR}/source/third_party/CMSIS/Core/Include"/>
                                     <listOptionValue value="${COM_TI_MSPM0_SDK_INSTALL_DIR}/source"/>
                                     <listOptionValue value="${CG_TOOL_ROOT}/arm-none-eabi/include/newlib-nano"/>
@@ -92,6 +98,7 @@
                                     <listOptionValue value="-march=armv6-m"/>
                                     <listOptionValue value="-mthumb"/>
                                     <listOptionValue value="--specs=nosys.specs"/>
+                                    <listOptionValue value="-Wl,--allow-multiple-definition"/>
                                 </option>
                                 <option id="com.ti.ccstudio.buildDefinitions.TMS470_GNU_9.0.linkerID.STATIC.949698921" superClass="com.ti.ccstudio.buildDefinitions.TMS470_GNU_9.0.linkerID.STATIC" value="true" valueType="boolean"/>
                                 <option id="com.ti.ccstudio.buildDefinitions.TMS470_GNU_9.0.linkerID.GC_SECTIONS.1289234224" superClass="com.ti.ccstudio.buildDefinitions.TMS470_GNU_9.0.linkerID.GC_SECTIONS" value="true" valueType="boolean"/>

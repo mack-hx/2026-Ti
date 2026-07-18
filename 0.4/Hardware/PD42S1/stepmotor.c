@@ -51,26 +51,38 @@
  * 回零 API
  * ============================================================================
  *
- * --- SM_zeroset: 把当前位置清零 + 设上限位原点 + 超时 + 上电自动回零 + 落盘 --
- *     K3 按下的瞬间, 节流器先发一帧 0x2A 读当前位置, 收到合法应答后才把
- *     sm_pos 锁存到 origin_pulses, 再串行 4 帧写入驱动器。这样保证
- *     "0x90/0x98 设的就是按下这一刻的位置", 不会因为 LCD 读取和按下沿
- *     错位而把"已经过时的 sm_pos"写回原点。
+ * --- SM_zeroset:设左/右限位原点 + 超时 + 上电自动回零 + 限位开关 + 落盘 --
+ *     调用方直接传左/右原点坐标 (单位: 脉冲, 51200=一圈), 不读当前位置。
+ *     函数只把左/右坐标写入驱动器寄存器, 不发 0xF8 清零 — 当前位置保持不变。
  *
- *     SM_zeroset(motor, origin, timeout_ms, auto_home_on)
- *         motor       → SM_X / SM_Y
- *         origin      → OL (左限位) / OR (右限位)
- *         timeout_ms  → 回零超时 (ms)
- *         auto_home_on→ true=打开上电自动回零, false=关闭
+ *     SM_zeroset(motor, left_pulses, right_pulses,
+ *                timeout_ms, auto_home_on, limit_on)
+ *         motor         → SM_X / SM_Y
+ *         left_pulses   → 左限位原点 (0x90), int32 脉冲, 有符号
+ *         right_pulses  → 右限位原点 (0x98), int32 脉冲, 有符号
+ *         timeout_ms    → 回零超时 (ms), 0x95, 推荐 10000~30000
+ *         auto_home_on  → true=打开上电自动回零 (0x97), false=关闭
+ *         limit_on      → true=开左右限位 (0x99), false=关
  *
- *     串行发 4 帧 (节流器自动 10ms 间隔):
- *       step1: 0x90/0x98 设左/右限位原点坐标 = sm_pos (当前位置)
- *       step2: 0x95      设回零超时
- *       step3: 0x97      设上电自动回零
- *       step4: 0x04      SaveParams 落盘
+ *     串行发 6 帧 (节流器自动 10ms 间隔, 约 60ms):
+ *       step1: 0x90 设左限位原点坐标 = left_pulses
+ *       step2: 0x98 设右限位原点坐标 = right_pulses
+ *       step3: 0x95 设回零超时
+ *       step4: 0x97 设上电自动回零
+ *       step5: 0x99 开关左右限位 (受 limit_on 控制)
+ *       step6: 0x04 SaveParams 落盘
  *
  *     注意: 0x97 仅在下次驱动器上电时生效, 要立刻回零见 SM_zero。
- *     典型用法: SM_zeroset(SM_X, OL, 10000, true);
+ *     典型用法:
+ *       SM_zeroset(SM_X, DEG_TO_PULSES(0),    DEG_TO_PULSES(1800),
+ *                  10000U, true, true);
+ *       SM_zeroset(SM_Y, DEG_TO_PULSES(-105), DEG_TO_PULSES(75),
+ *                  10000U, true, true);
+ *
+ *     timeout_ms 推荐 10000~30000 ms:
+ *       - 10000 ms: 默认, 行程 < 半圈
+ *       - 30000 ms: 行程较长 / 启动慢的电机
+ *       - < 5000 ms: 太短, 慢速回零/长行程容易"假超时未到原点就停"
  *
  * --- SM_zero: 立刻触发驱动器执行回零动作 -------------------------------
  *     单帧 0x92, 驱动器自执行, 主循环通过 SM_IsArrived 查询到位状态。
@@ -171,8 +183,29 @@ int32_t SM_GetPosition(sm_motor_t motor) {
 
 /* ============================================================================
  * 节流器
+ * ============================================================================
+ * SM_FRAME_GAP_MS = 15 ms (从 10ms 拉开, 2026-07-15 修复 0xF3 被驱动器拒收丢步 bug):
+ *   - 10ms 是协议规定的"相邻命令最小间隔", 实测在 MSPM0 @80MHz + 库函数 + ISR
+ *     调度累计延迟下临界, 偶尔背靠背导致驱动器内部 FIFO 上溢, 返回 0xE3
+ *     FOOTER_ERR NAK, 0xF3 相对位置命令被驱动器丢弃 → 丢步.
+ *   - 15ms 留 5ms 余量, 满足"≥ 10ms"约束, 几乎不感知延迟, PID 控制时
+ *     15ms 控制周期仍然足够 (3.3ms / 步 @ 3000 步/秒 即 60 RPM).
+ *   - PID 写完后若嫌慢, 可以从 15 调到 12, 但必须实测确认 0xE3 不复现.
  * ============================================================================ */
-#define SM_FRAME_GAP_MS    10U   /* 帧间隔: 与之前 delay(10) 一致 */
+#define SM_FRAME_GAP_MS    15U   /* 帧间隔: ≥ 10ms 协议要求, 加 5ms 余量 */
+
+/* 0xF3 / 0xF2 位置命令的重试参数:
+ *   - 发了位置命令后, 驱动器应在 SM_POS_ACK_TIMEOUT_MS 内回 0xF3/0xF2 + ERR=0x01
+ *     (7 字节短帧, 含 ERR + CHK + TAIL). 如果超时没收到 → 重发.
+ *   - SM_POS_MAX_RETRIES = 3 次, 加上首次一共 4 次发, 失败就放弃 (驱动器可能掉线)
+ *   - 重试占用节流器窗口, 不会和别的命令背靠背
+ *
+ * 注意: 0xF3 应答 ERR=0x01 是"驱动器受理", 不代表电机到位; 到位要等 0x30 ARRIVED
+ *       应答. 但 0xF3 命令被受理 = 后续 0x30 会按正确状态机推进, PID 控制时正确性
+ *       靠 0x30 ARRIVED 闭环.
+ */
+#define SM_POS_ACK_TIMEOUT_MS   80U   /* 0xF3/0xF2 应答超时 (驱动器典型 < 20ms) */
+#define SM_POS_MAX_RETRIES      3U    /* 最多重发 3 次 (含首次共 4 次) */
 
 /* 单条原语 (每条发一帧) */
 typedef enum {
@@ -185,12 +218,15 @@ typedef enum {
     SM_OP_STOP_IMM,
     SM_OP_CLEAR_STATUS,
     SM_OP_READ_POS,        /* 0x2A 读一次实时位置 (非循环) */
+    SM_OP_REL_POS,         /* 0xF3 相对位置模式 (用户 2026-07-15 改走节流器) */
+    SM_OP_ABS_POS,         /* 0xF2 绝对位置模式 (同 REL_POS, 走节流器等应答) */
     /* 回零类原语 (手册 4.5) */
     SM_OP_SET_LEFT_ORIGIN,    /* 0x90 设置左限位原点位置 */
     SM_OP_SET_RIGHT_ORIGIN,   /* 0x98 设置右限位原点位置 */
     SM_OP_SET_LIMIT_HOME,     /* 0x91 设置有无限位回零 (mode/dir/speed/limit_ma) */
     SM_OP_SET_ZERO_TIMEOUT,   /* 0x95 修改回零超时时间 */
     SM_OP_SET_AUTO_HOME,      /* 0x97 设置上电自动回零 */
+    SM_OP_SET_LIMIT_SWITCH,   /* 0x99 开关左右限位 */
     SM_OP_TRIGGER_HOME,       /* 0x92 触发回零 */
 } sm_op_t;
 
@@ -213,26 +249,68 @@ typedef struct {
     uint8_t    b3, b2, b1, b0;
 } sm_speed_param_t;
 
+/* 位置模式指令的参数 (0xF3 REL_POS / 0xF2 ABS_POS 共用, 走节流器等应答 + 重试)
+ *   - 与 sm_speed_param_t 几乎一样, 多了 pulses (int32, 大端字节序已经展开)
+ *   - 节流器先挂 SM_OP_REL_POS/SM_OP_ABS_POS, SM_Tick 发送时调 PD42S1_RelPosMode/AbsPosMode
+ *   - 发完后起 80ms 应答超时计时器, 超时未收到 0xF3/0xF2 + ERR=0x01 → 重发, 最多 3 次 */
+typedef struct {
+    uint8_t    addr;
+    pd42_dir_t dir;
+    uint8_t    accel;
+    uint16_t   speed;        /* 原 uint16, 不展开成 4 字节, 发送时再拆 */
+    int32_t    pulses;
+} sm_pos_param_t;
+
+/* 位置命令应答检测状态 (用户 2026-07-15 新增, 解决 0xE3 FOOTER_ERR 丢步)
+ *   - 节流器每发一帧 0xF3/0xF2 后, 等 SM_POS_ACK_TIMEOUT_MS 看是否收到 0xF3/0xF2 + ERR=0x01
+ *   - 没收到 → 标记 pending_ack, 等下个 SM_Tick 检查超时, 触发重发
+ *   - 重发上限 SM_POS_MAX_RETRIES (3 次), 超过后清状态放弃
+ *
+ * 注意:
+ *   - 只追踪最近一帧位置命令的应答, 旧的会被覆盖 (节流器一次只发一帧)
+ *   - 如果节流器中位置命令前还有未发的命令 (speed / enable), 位置命令发出时
+ *     pending_ack 已经激活, ISR 收到的 0xF3 应答只清 pending_ack 不动节流器
+ *   - 0xF3 + ERR=0x01 才是受理; ERR=0xE3 是 NAK, 不算"受理", 不清 pending_ack
+ *     (因为命令本身被驱动器拒了, 重发才对) */
+typedef struct {
+    bool     active;         /* 当前在等应答 */
+    uint8_t  addr;           /* 等哪一轴 (0x01 / 0x02) */
+    uint8_t  func;           /* 0xF3 或 0xF2 */
+    uint8_t  retries;        /* 已重试次数, 0..SM_POS_MAX_RETRIES */
+    uint32_t sent_ms;        /* 发出时刻 (tick_ms) */
+    sm_pos_param_t param;    /* 重发时复用 */
+} sm_pos_ack_t;
+
 /* SM_zeroset 的参数 (跨多帧缓存, 节流器按步序发出) */
 typedef struct {
     uint8_t     addr;
-    sm_origin_t origin;         /* LEFT/RIGHT → 选 0x90 还是 0x98 */
-    int32_t     origin_pulses;  /* 原点位置 (传 0 表示"当前位置即原点") */
-    uint32_t    timeout_ms;     /* 回零超时 */
-    bool        auto_home;      /* true=上电自动回零 */
+    int32_t     left_pulses;     /* 左限位原点坐标 (0x90) */
+    int32_t     right_pulses;    /* 右限位原点坐标 (0x98) */
+    uint32_t    timeout_ms;      /* 回零超时 */
+    bool        auto_home;       /* true=上电自动回零 */
+    bool        limit_on;        /* true=开左右限位 (0x99) */
 } sm_zeroset_param_t;
 
 /* 节流器单例 */
 typedef struct {
     sm_op_t          pending;     /* 当前要发的原语 (NONE = 空) */
     sm_speed_param_t speed;       /* SM_OP_SPEED 的参数 */
+    sm_pos_param_t   pos;         /* SM_OP_REL_POS / SM_OP_ABS_POS 的参数 */
     uint32_t         next_ms;     /* 最早可发时间 (tick_ms 基准) */
+
+    /* 位置命令应答追踪 (0xF3 / 0xF2 发出后等 ERR=0x01, 超时重发)
+     *   用户 2026-07-15 加: 解决驱动器偶发 0xE3 FOOTER_ERR NAK 丢 0xF3 步进命令,
+     *   导致"按了 K1 但电机没动"的丢步问题. 节流器间隔已从 10ms 拉到 15ms,
+     *   但仍有偶发, 加重试兜底保证命令到达, 为后续 PID 控制做准备. */
+    sm_pos_ack_t     pos_ack;
 
     /* 上电初始化序列: X enable → Y enable → X position mode → Y position mode */
     uint8_t          init_step;   /* 0..4, 4 表示完成 */
 
-    /* SM_zeroset 串行序列: SET_ORIGIN → SET_TIMEOUT → SET_AUTO_HOME → SAVE, 4 步 */
-    uint8_t          zs_step;     /* 0 = 不在序列中, 1..4 表示第几步, 5 = 完 */
+    /* SM_zeroset 串行序列: SET_LEFT_ORIGIN → SET_RIGHT_ORIGIN →
+     *                          SET_TIMEOUT → SET_AUTO_HOME →
+     *                          SET_LIMIT_SWITCH → SAVE, 6 步 */
+    uint8_t          zs_step;     /* 0 = 不在序列中, 1..6 表示第几步, 7 = 完 */
     sm_zeroset_param_t zs;
 
     /* SM_zero 单帧序列: 触发一次回零即可 */
@@ -244,19 +322,27 @@ typedef struct {
     uint8_t          ih_step;     /* 0 = 不在序列, 1 = 挂 SET_LIMIT_HOME, 2 = 挂 TRIGGER_HOME, 3 = 完 */
     sm_ih_param_t    ih;
 
-    /* 读位置自动重试；purpose 区分普通刷新与“先读当前位置再设置原点”。 */
+    /* 读位置自动重试 (K3 短按 / 长按触发读当前位置)。 */
     bool             read_pending;
     uint32_t         read_last_ms;
     uint32_t         read_start_ms;
     uint8_t          read_addr;
+    /* 已废弃字段 (2026-07-15 SM_zeroset 改为传参): 之前用于"读 0x2A 后启动
+     * 0x90/0x98 序列"的旧逻辑, 现在 zs_step 由 SM_zeroset 直接置 1 启动.
+     * 保留字段避免 layout 大改, SM_ReadPosition 入口仍置 false 兜底. */
     bool             read_for_zeroset;
 } sm_throttle_t;
 
 #define SM_READ_TIMEOUT_MS  500U   /* 读位置最多连续发 500ms, 防止驱动掉线时无限刷屏 */
 
 static sm_throttle_t s_thr = {
-    SM_OP_NONE, { 0, PD42_DIR_CW, 0, 0,0,0,0 }, 0, 4,
-    0, { 0, OL, 0, 0, false },
+    SM_OP_NONE,
+    { 0, PD42_DIR_CW, 0, 0,0,0,0 },
+    { 0, PD42_DIR_CW, 0, 0, 0 },
+    0,
+    { false, 0, 0, 0, 0, { 0, PD42_DIR_CW, 0, 0, 0 } },
+    4,
+    0, { 0, 0, 0, 0, false, false },
     0, 0, HS,
     0, { 0, HL, 0, 0, true },
     false, 0, 0, 0, false
@@ -287,6 +373,37 @@ static sm_op_t sm_emit(sm_op_t op) {
                                 s_thr.speed.b3, s_thr.speed.b2,
                                 s_thr.speed.b1, s_thr.speed.b0);
             break;
+        case SM_OP_REL_POS:
+            /* 0xF3 相对位置: 走节流器后, 应答检测由 pos_ack 追踪
+             *   首次发 (active=false) → active=true, retries=0
+             *   重发 (active=true 且 func 一致) → 复用原 param, 不重置 retries
+             *   用 s_thr.pos_ack.active 来区分两种情况 */
+            PD42S1_RelPosMode(s_thr.pos.addr, s_thr.pos.dir, s_thr.pos.accel,
+                              s_thr.pos.speed, s_thr.pos.pulses);
+            if (!s_thr.pos_ack.active ||
+                s_thr.pos_ack.func != PD42_FCT_REL_POS_MODE) {
+                s_thr.pos_ack.active  = true;
+                s_thr.pos_ack.addr    = s_thr.pos.addr;
+                s_thr.pos_ack.func    = PD42_FCT_REL_POS_MODE;
+                s_thr.pos_ack.retries = 0;
+                s_thr.pos_ack.param   = s_thr.pos;
+            }
+            s_thr.pos_ack.sent_ms = tick_ms;
+            break;
+        case SM_OP_ABS_POS:
+            /* 0xF2 绝对位置: 同 REL_POS */
+            PD42S1_AbsPosMode(s_thr.pos.addr, s_thr.pos.dir, s_thr.pos.accel,
+                              s_thr.pos.speed, s_thr.pos.pulses);
+            if (!s_thr.pos_ack.active ||
+                s_thr.pos_ack.func != PD42_FCT_ABS_POS_MODE) {
+                s_thr.pos_ack.active  = true;
+                s_thr.pos_ack.addr    = s_thr.pos.addr;
+                s_thr.pos_ack.func    = PD42_FCT_ABS_POS_MODE;
+                s_thr.pos_ack.retries = 0;
+                s_thr.pos_ack.param   = s_thr.pos;
+            }
+            s_thr.pos_ack.sent_ms = tick_ms;
+            break;
         case SM_OP_STOP_IMM:
             PD42S1_StopImmediate(s_thr.speed.addr);
             break;
@@ -297,10 +414,10 @@ static sm_op_t sm_emit(sm_op_t op) {
             PD42S1_ReadPosition(s_thr.read_addr);
             break;
         case SM_OP_SET_LEFT_ORIGIN:
-            PD42S1_SetLeftLimitOrigin(s_thr.zs.addr, s_thr.zs.origin_pulses);
+            PD42S1_SetLeftLimitOrigin(s_thr.zs.addr, s_thr.zs.left_pulses);
             break;
         case SM_OP_SET_RIGHT_ORIGIN:
-            PD42S1_SetRightLimitOrigin(s_thr.zs.addr, s_thr.zs.origin_pulses);
+            PD42S1_SetRightLimitOrigin(s_thr.zs.addr, s_thr.zs.right_pulses);
             break;
         case SM_OP_SET_LIMIT_HOME: {
             /* 0x91 SET_LIMIT_HOME:
@@ -327,6 +444,10 @@ static sm_op_t sm_emit(sm_op_t op) {
             break;
         case SM_OP_SET_AUTO_HOME:
             PD42S1_SetAutoHome(s_thr.zs.addr, s_thr.zs.auto_home);
+            break;
+        case SM_OP_SET_LIMIT_SWITCH:
+            /* 0x99 开关左右限位: 设了原点坐标后开启才有效 */
+            PD42S1_SetLimitSwitch(s_thr.zs.addr, s_thr.zs.limit_on);
             break;
         case SM_OP_TRIGGER_HOME:
             /* 映射: HN/HS/HM (应用层 0/1/2) → 协议 SINGLE/NEAREST/MULTI (0/1/2) */
@@ -389,32 +510,43 @@ void SM_Tick(void) {
     /* 两路 UART 的应答分别消费，位置缓存按轴保存。 */
     for (uint8_t axis = 0U; axis < 2U; axis++) {
         sm_motor_t motor = (axis == 0U) ? SM_X : SM_Y;
-        if (PD42S1_TakeFrameFor((uint8_t)motor, &frame) &&
-            frame.function_code == PD42_FCT_READ_POSITION &&
-            frame.data_len >= 5U) {
-            sm_err = frame.data[0];
-            if (sm_err == PD42_ACK_OK) {
-                int32_t pos = (int32_t)((uint32_t)frame.data[1] << 24)
-                            | ((uint32_t)frame.data[2] << 16)
-                            | ((uint32_t)frame.data[3] << 8)
-                            |  (uint32_t)frame.data[4];
-                s_axis_pos[axis] = pos;
-                sm_pos = pos;
-                if (s_thr.read_pending && s_thr.read_addr == (uint8_t)motor) {
-                    s_thr.read_pending = false;
-                    if (s_thr.read_for_zeroset) {
-                        s_thr.zs.origin_pulses = pos;
-                        s_thr.zs_step = 1;
+        if (PD42S1_TakeFrameFor((uint8_t)motor, &frame)) {
+            /* 0x2A 读位置应答: 5 字节 data, 第 0 字节 ERR, 后 4 字节 int32 大端位置 */
+            if (frame.function_code == PD42_FCT_READ_POSITION &&
+                frame.data_len >= 5U) {
+                sm_err = frame.data[0];
+                if (sm_err == PD42_ACK_OK) {
+                    int32_t pos = (int32_t)((uint32_t)frame.data[1] << 24)
+                                | ((uint32_t)frame.data[2] << 16)
+                                | ((uint32_t)frame.data[3] << 8)
+                                |  (uint32_t)frame.data[4];
+                    s_axis_pos[axis] = pos;
+                    sm_pos = pos;
+                    if (s_thr.read_pending && s_thr.read_addr == (uint8_t)motor) {
+                        s_thr.read_pending = false;
+                        /* 旧版 "读到应答后启动 zs_step=1" 路径已废弃:
+                         *   SM_zeroset 现在直接传 left/right_pulses, 不再读 0x2A.
+                         *   SM_ReadPosition 入口仍置 read_for_zeroset=false 兜底 */
                     }
-                    s_thr.read_for_zeroset = false;
                 }
+            }
+            /* 0xF3 / 0xF2 位置命令应答 (7 字节短帧 [C5][ADDR][FUNC][ERR][CHK][5C]):
+             *   ERR=0x01 (PD42_ACK_OK) = 驱动器受理, 清 pos_ack.active
+             *   ERR=0xE3 (PD42_ACK_FOOTER_ERR) = 驱动器拒收, 不清, 等超时重发
+             *   ERR=其他 = 同上不受理, 等超时重发
+             * 用户 2026-07-15: 解决 0xE3 NAK 偶发丢 0xF3 步进命令的丢步问题 */
+            else if (s_thr.pos_ack.active &&
+                     s_thr.pos_ack.addr == (uint8_t)motor &&
+                     frame.function_code == s_thr.pos_ack.func &&
+                     frame.error_code == PD42_ACK_OK) {
+                s_thr.pos_ack.active = false;
             }
         }
     }
 
     /* 上电依次使能 X/Y 并切换到通信位置模式；不改驱动器已保存的零点。 */
     if (s_thr.init_step < 4 && s_thr.pending == SM_OP_NONE) {
-        if ((int32_t)(now - s_thr.next_ms) < 0) return;
+        if (now < s_thr.next_ms) return;
         switch (s_thr.init_step) {
             case 0:
                 s_thr.speed.addr = SM_X;
@@ -444,23 +576,23 @@ void SM_Tick(void) {
         if ((uint32_t)(now - s_thr.read_start_ms) > SM_READ_TIMEOUT_MS) {
             s_thr.read_pending = false;
             s_thr.read_for_zeroset = false;
-        } else if ((int32_t)(now - s_thr.read_last_ms) >= (int32_t)SM_FRAME_GAP_MS) {
+        } else if (now - s_thr.read_last_ms >= SM_FRAME_GAP_MS) {
             s_thr.pending = SM_OP_READ_POS;
         }
     }
 
-    /* 3. SM_zeroset 序列: SET_ORIGIN → SET_TIMEOUT → SET_AUTO_HOME → SAVE
-     *    注意: 不再发 0xF8, 当前位置直接作为原点坐标 (SM_zeroset 入口读 sm_pos) */
-    if (s_thr.pending == SM_OP_NONE && s_thr.zs_step >= 1 && s_thr.zs_step <= 4) {
+    /* 3. SM_zeroset 序列 (6 帧, 节流器 10ms 间隔, 约 60ms 写完):
+     *    SET_LEFT_ORIGIN → SET_RIGHT_ORIGIN → SET_ZERO_TIMEOUT →
+     *    SET_AUTO_HOME → SET_LIMIT_SWITCH → SAVE_PARAMS
+     *    注意: 不再发 0xF8, 左/右原点坐标由调用方传入 (left_pulses/right_pulses) */
+    if (s_thr.pending == SM_OP_NONE && s_thr.zs_step >= 1 && s_thr.zs_step <= 6) {
         switch (s_thr.zs_step) {
-            case 1:
-                s_thr.pending = (s_thr.zs.origin == OL)
-                                ? SM_OP_SET_LEFT_ORIGIN
-                                : SM_OP_SET_RIGHT_ORIGIN;
-                break;
-            case 2: s_thr.pending = SM_OP_SET_ZERO_TIMEOUT; break;
-            case 3: s_thr.pending = SM_OP_SET_AUTO_HOME;    break;
-            case 4: s_thr.pending = SM_OP_SAVE_PARAMS;     break;
+            case 1: s_thr.pending = SM_OP_SET_LEFT_ORIGIN;   break;
+            case 2: s_thr.pending = SM_OP_SET_RIGHT_ORIGIN;  break;
+            case 3: s_thr.pending = SM_OP_SET_ZERO_TIMEOUT;  break;
+            case 4: s_thr.pending = SM_OP_SET_AUTO_HOME;     break;
+            case 5: s_thr.pending = SM_OP_SET_LIMIT_SWITCH;  break;
+            case 6: s_thr.pending = SM_OP_SAVE_PARAMS;       break;
         }
         s_thr.zs_step++;
     }
@@ -480,8 +612,35 @@ void SM_Tick(void) {
         s_thr.ih_step++;
     }
 
+    /* 6. 位置命令应答超时重发 (用户 2026-07-15 加, 解决 0xF3 被驱动器拒收丢步)
+     *    条件:
+     *      - pos_ack.active = true (有位置命令在等应答)
+     *      - 已发出 SM_POS_ACK_TIMEOUT_MS (默认 80ms) 还没收到 ERR=0x01 应答
+     *      - retries < SM_POS_MAX_RETRIES (默认 3, 含首次共 4 次)
+     *    动作: 把同一帧重新挂回节流器 (节流器 15ms 间隔自动保证不背靠背),
+     *          retries++, sent_ms = now, param 不变 (已存)
+     *    如果 retries 满了: 放弃, active=false (驱动器可能掉线, 让用户从 LCD 看 ERR)
+     *
+     *    注意: 这个分支只在 pending=NONE 时才挂 (不能打断正在发的命令) */
+    if (s_thr.pending == SM_OP_NONE && s_thr.pos_ack.active &&
+        (uint32_t)(now - s_thr.pos_ack.sent_ms) > SM_POS_ACK_TIMEOUT_MS) {
+        if (s_thr.pos_ack.retries < SM_POS_MAX_RETRIES) {
+            /* 重新挂回节流器: 复用 param, 节流器按当前 func 决定 SM_OP_REL_POS 或 ABS_POS */
+            s_thr.pos = s_thr.pos_ack.param;
+            s_thr.pending = (s_thr.pos_ack.func == PD42_FCT_ABS_POS_MODE)
+                          ? SM_OP_ABS_POS
+                          : SM_OP_REL_POS;
+            /* 重试时: 节流器 next_ms 还要等到, 这里不强制; 由第 7 步的 next_ms 守卫把关 */
+            s_thr.pos_ack.retries++;
+            /* sent_ms 在 sm_emit 中重设 */
+        } else {
+            /* 重试用完: 放弃, 让 LCD 显示 ERR 帮助调试. 不重置 state, 让用户感知 */
+            s_thr.pos_ack.active = false;
+        }
+    }
+
     if (s_thr.pending == SM_OP_NONE) return;
-    if ((int32_t)(now - s_thr.next_ms) < 0) return;
+    if (now < s_thr.next_ms) return;
 
     sm_op_t op = s_thr.pending;
     s_thr.pending = SM_OP_NONE;
@@ -511,6 +670,10 @@ void SM_Init(void) {
     s_axis_pos[1] = 0;
     sm_pos = 0;
     sm_state = 0;
+
+    /* 用户 2026-07-15: 清位置应答追踪, 防止上电重置前一次重试状态泄漏 */
+    s_thr.pos_ack.active  = false;
+    s_thr.pos_ack.retries = 0;
 }
 
 void SM_Stop(sm_motor_t motor) {
@@ -547,20 +710,31 @@ void SM_Run(sm_motor_t motor, sm_dir_t dir, uint8_t accel, uint16_t speed) {
 
 void SM_MoveTo(sm_motor_t motor, sm_dir_t dir, uint8_t accel,
                uint16_t speed, int32_t pulses) {
-    pd42_dir_t d = SM_DIR_NORMALIZE(
-                      (dir == R) ? PD42_DIR_CW : PD42_DIR_CCW);
-    uint8_t sp = (speed > 6000) ? 6000 : (uint8_t)speed;
-    PD42S1_AbsPosMode(motor, d, accel, sp, pulses);
-    sm_state = 3;
+    /* 用户 2026-07-15 改: 不再直接发, 走节流器等应答 + 超时重发
+     *   原来直接调 PD42S1_AbsPosMode, 按 K1/K2 时与节流器其他帧背靠背
+     *   导致驱动器偶发 0xE3 FOOTER_ERR, 命令被丢弃, 丢步.
+     *   现在缓存入队, 节流器按 15ms 间隔发出, 自动等待应答, 超时自动重发. */
+    s_thr.pos.addr   = (uint8_t)motor;
+    s_thr.pos.dir    = SM_DIR_NORMALIZE(
+                           (dir == R) ? PD42_DIR_CW : PD42_DIR_CCW);
+    s_thr.pos.accel  = accel;
+    s_thr.pos.speed  = (speed > 6000) ? 6000 : speed;
+    s_thr.pos.pulses = pulses;
+    s_thr.pending    = SM_OP_ABS_POS;
+    sm_state         = 3;
 }
 
 void SM_Move(sm_motor_t motor, sm_dir_t dir, uint8_t accel,
              uint16_t speed, int32_t pulses) {
-    pd42_dir_t d = SM_DIR_NORMALIZE(
-                      (dir == R) ? PD42_DIR_CW : PD42_DIR_CCW);
-    uint8_t sp = (speed > 6000) ? 6000 : (uint8_t)speed;
-    PD42S1_RelPosMode(motor, d, accel, sp, pulses);
-    sm_state = 3;
+    /* 用户 2026-07-15 改: 同 SM_MoveTo, 走节流器等应答 + 超时重发 */
+    s_thr.pos.addr   = (uint8_t)motor;
+    s_thr.pos.dir    = SM_DIR_NORMALIZE(
+                           (dir == R) ? PD42_DIR_CW : PD42_DIR_CCW);
+    s_thr.pos.accel  = accel;
+    s_thr.pos.speed  = (speed > 6000) ? 6000 : speed;
+    s_thr.pos.pulses = pulses;
+    s_thr.pending    = SM_OP_REL_POS;
+    sm_state         = 3;
 }
 
 void SM_ResetPosition(sm_motor_t motor) {
@@ -597,30 +771,37 @@ bool SM_IsArrived(sm_motor_t motor) {
  * 回零 API
  * ============================================================================
  *
- * SM_zeroset: 串行 4 帧入节流队列
- *   1) 设原点位置 (0x90 左 或 0x98 右) = sm_pos (当前位置)
- *   2) 设回零超时 (0x95)
- *   3) 设上电自动回零标志 (0x97)
- *   4) SaveParams (0x04) 落盘, 掉电不丢失
+ * SM_zeroset: 串行 6 帧入节流队列 (节流器 10ms 间隔, 约 60ms 写完)
+ *   1) 0x90 设左限位原点  = left_pulses  (调用方传入, 不读当前位置)
+ *   2) 0x98 设右限位原点  = right_pulses (调用方传入)
+ *   3) 0x95 设回零超时    = timeout_ms
+ *   4) 0x97 设上电自动回零 = auto_home_on
+ *   5) 0x99 开关左右限位  = limit_on
+ *   6) 0x04 SaveParams 落盘, 掉电不丢失
  *
- * 注意: 当前位置在入口处读 sm_pos 并写入 0x90/0x98。
+ * 注意: 当前位置 (s_axis_pos[motor-1]) 不变 — 不发 0xF8, 只改写原点寄存器。
  * 上电自动回零标志 0x97 仅在**下次驱动器上电**时生效, 当前进程不会自动回零。
  */
-void SM_zeroset(sm_motor_t motor, sm_origin_t origin,
-                uint32_t timeout_ms, bool auto_home_on) {
-    /* K3 的语义是“按下这一刻的位置”。先读 0x2A；只有收到成功应答后，
-     * SM_Tick 才把新位置锁存到 origin_pulses 并启动 0x90/0x98 序列。 */
-    s_thr.speed.addr       = (uint8_t)motor;
+void SM_zeroset(sm_motor_t motor,
+                int32_t left_pulses, int32_t right_pulses,
+                uint32_t timeout_ms, bool auto_home_on, bool limit_on) {
+    /* 入参 → 节流器字段
+     *   motor        → s_thr.zs.addr
+     *   left_pulses  → s_thr.zs.left_pulses  (0x90)
+     *   right_pulses → s_thr.zs.right_pulses (0x98)
+     *   timeout_ms   → s_thr.zs.timeout_ms   (0x95)
+     *   auto_home_on → s_thr.zs.auto_home    (0x97)
+     *   limit_on     → s_thr.zs.limit_on     (0x99)
+     * zs_step 由 SM_Tick 推进 (1..6), 写满 6 帧后停在 7 (= 完成).
+     *
+     * 不再读 0x2A: 旧版本先读当前位置再写原点, 现在调用方直接传坐标, 节省一次往返 */
     s_thr.zs.addr          = (uint8_t)motor;
-    s_thr.zs.origin        = origin;
+    s_thr.zs.left_pulses   = left_pulses;
+    s_thr.zs.right_pulses  = right_pulses;
     s_thr.zs.timeout_ms    = timeout_ms;
     s_thr.zs.auto_home     = auto_home_on;
-    s_thr.zs_step          = 0;
-    s_thr.read_addr        = (uint8_t)motor;
-    s_thr.read_pending     = true;
-    s_thr.read_for_zeroset = true;
-    s_thr.read_last_ms     = tick_ms - SM_FRAME_GAP_MS;
-    s_thr.read_start_ms    = tick_ms;
+    s_thr.zs.limit_on      = limit_on;
+    s_thr.zs_step          = 1;    /* 启动 6 帧序列 */
 }
 
 /**

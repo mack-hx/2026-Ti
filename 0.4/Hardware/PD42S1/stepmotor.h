@@ -32,12 +32,6 @@ typedef enum {
     L = 2,         /* 反转 (CCW) */
 } sm_dir_t;
 
-/* 原点位置类型 (用于 SM_zeroset) */
-typedef enum {
-    OL = 0,   /* 左限位原点 (手册 0x90) */
-    OR = 1,   /* 右限位原点 (手册 0x98) */
-} sm_origin_t;
-
 /* 回零模式 (用于 SM_zero, 手册 4.5.3)
  *
  * 应用层语义值: 0=HN 就近 / 1=HS 单圈 / 2=HM 多圈 (按"短词优先"排, 主循环写 0/1/2 直白)
@@ -113,14 +107,49 @@ bool SM_IsArrived(sm_motor_t motor);
  * 回零 API
  * ============================================================================ */
 
-/* 把当前位置写入原点坐标寄存器 + 设回零参数 + 上电自动回零 + 落盘。
- * 串行 4 帧 (节流器 10ms 间隔, 约 40ms):
- *   1) 0x90/0x98 设原点坐标 = sm_pos (当前位置)
- *   2) 0x95 超时  3) 0x97 上电自动回零  4) 0x04 SaveParams 落盘
- * 注意: 当前位置不变 (K3 读出来还是原值), 只是原点坐标寄存器被改写。
- * 后续 SM_zero(HM) 多圈回零时驱动器会去 sm_pos 这个坐标停下。 */
-void SM_zeroset(sm_motor_t motor, sm_origin_t origin,
-               uint32_t timeout_ms, bool auto_home_on);
+/* 把当前 X/Y 轴原点坐标 + 超时 + 上电自动回零 + 左右限位开关一次性写入驱动器并落盘。
+ *
+ * 串行 6 帧 (节流器 10ms 间隔, 约 60ms):
+ *   1) 0x90 设左限位原点坐标 = left_pulses  (int32, 51200=一圈, 有符号)
+ *   2) 0x98 设右限位原点坐标 = right_pulses (int32, 51200=一圈, 有符号)
+ *   3) 0x95 设回零超时       = timeout_ms   (uint32 ms, 默认 10000)
+ *   4) 0x97 设上电自动回零   = auto_home_on (true=开, false=关)
+ *   5) 0x99 开关左右限位     = limit_on     (true=开, false=关)
+ *   6) 0x04 SaveParams 落盘  (掉电不丢)
+ *
+ *   当前轴位置不变 — 函数只改写驱动器的原点坐标寄存器, 不发 0xF8 清零。
+ *   X/Y 轴的"左/右原点"由 left/right_pulses 决定, 与当前位置无关。
+ *   后续 SM_zero(HM) 多圈回零时, 驱动器会去 left/right_pulses 这个坐标停下。
+ *
+ *   典型用法 (X 轴 0..1800°, Y 轴 -105..75°, 上电自动回零 + 开限位 + 10 秒超时):
+ *     SM_zeroset(SM_X,    DEG_TO_PULSES(0),    DEG_TO_PULSES(1800), 10000U, true, true);
+ *     SM_zeroset(SM_Y,    DEG_TO_PULSES(-105), DEG_TO_PULSES(75),   10000U, true, true);
+ *
+ *   关于 timeout_ms 的语义 (用户 2026-07-15 04:35 反馈):
+ *     这是驱动器侧回零动作的"最长等待时间"。回零动作期间, 驱动器开始旋转找原点,
+ *     一旦找到 (驱动侧 ack) 或超时 (timeout_ms 毫秒), 驱动器自动停机并把"已回零"
+ *     标志置位。
+ *     推荐值 10000~30000 ms (= 10~30 秒):
+ *       - 10000 ms: 默认, 适用于行程 < 半圈 (例如 X 轴 0..1800° 远小于 5 圈)
+ *       - 30000 ms: 行程较长 / 启动慢的电机, 给堵转/爬行留余量
+ *       - < 5000 ms: 太短, 慢速回零/长行程场景容易"假超时未到原点就停"
+ *     它只控制 SM_zero / SM_limithome / SM_infzero 触发的回零动作,
+ *     **不影响** SM_zeroset 写寄存器本身的耗时 (那 6 帧 60ms 写完就完事)。
+ *
+ * @param motor         SM_X / SM_Y
+ * @param left_pulses   左限位原点坐标 (int32, 单位: 脉冲, 51200=一圈, 有符号)
+ * @param right_pulses  右限位原点坐标 (int32, 单位: 脉冲, 51200=一圈, 有符号)
+ * @param timeout_ms    回零超时时间 (uint32 ms, 推荐 10000~30000)
+ * @param auto_home_on  true=驱动器下次上电自动回零 (0x97); false=不自动
+ * @param limit_on      true=开启左右限位 (0x99), 行程被框在 [left, right];
+ *                      false=关闭限位 (全行程)
+ *
+ * @note  顺序写死: 0x90 → 0x98 → 0x95 → 0x97 → 0x99 → 0x04。驱动器按顺序应用,
+ *        但左/右原点坐标本身独立, 先后无依赖。
+ */
+void SM_zeroset(sm_motor_t motor,
+                int32_t left_pulses,  int32_t right_pulses,
+                uint32_t timeout_ms,  bool auto_home_on, bool limit_on);
 
 /* 立刻触发回零 (单帧 0x92, 驱动器自执行)。
  * 触发前需先用 SM_zeroset 设过原点位置。 */
