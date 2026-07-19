@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<launchConfiguration type="com.ti.ccstudio.debugScriptTemplateType">
+    <listAttribute key="com.ti.ccstudio.debug.debugger.ACTIVATION_PERIODIC_UPDATE_DELAY">
+        <listEntry value="250"/>
+    </listAttribute>
+    <listAttribute key="com.ti.ccstudio.debug.debugger.CONNECTION_ALIAS"/>
+    <listAttribute key="com.ti.ccstudio.debug.debugger.CONNECTION_LIST">
+        <listEntry value="SEGGER J-Link Emulator_0"/>
+    </listAttribute>
+    <listAttribute key="com.ti.ccstudio.debug.debugger.FREQUENCY_LIST">
+        <listEntry value="10000000"/>
+    </listAttribute>
+    <listAttribute key="com.ti.ccstudio.debug.debugger.PRODUCT_SELECTION_LIST">
+        <listEntry value="com.ti.ccstudio.debug.product.TIMULTILINKPRODDESC_1"/>
+        <listEntry value="com.ti.ccstudio.debug.product.SEGGERJLINKKITPRODDESC_1"/>
+    </listAttribute>
+    <booleanAttribute key="com.ti.ccstudio.debug.debugger.USE_DEFAULT_PRODUCT_SELECTION" value="false"/>
+    <stringAttribute key="com.ti.ccstudio.debug.debugger.CONNECTION_MODE" value="JTAG"/>
+    <stringAttribute key="com.ti.ccstudio.debug.debugger.CORTEX_M0P.CPU_RST_CONFIGURATION" value="&lt;?xml version=&quot;1.0&quot; encoding=&quot;UTF-8&quot; standalone=&quot;no&quot;?&gt;&#10;&lt;PropertyValues/&gt;&#10;"/>
+    <stringAttribute key="com.ti.ccstudio.debug.debugger.CORTEX_M0P.NMICI_CONFIGURATION" value="&lt;?xml version=&quot;1.0&quot; encoding=&quot;UTF-8&quot; standalone=&quot;no&quot;?&gt;&#10;&lt;PropertyValues/&gt;&#10;"/>
+    <stringAttribute key="com.ti.ccstudio.debug.debugger.CORTEX_M0P.VECTOR_TABLE_OFFSET" value=""/>
+    <stringAttribute key="com.ti.ccstudio.debug.debugger.DEVICE_PARAM" value="MSPM0G3507"/>
+    <stringAttribute key="com.ti.ccstudio.debug.debugger.EMULATOR_PARAM" value="SEGGER J-Link Emulator_0"/>
+    <stringAttribute key="com.ti.ccstudio.debug.debugger.PRODUCT_SELECTION_PARAM" value="SEGGERJLINKKITPRODDESC_1"/>
+    <stringAttribute key="com.ti.ccstudio.debug.debugger.TARGET_CONFIGURATION_FILE" value="targetConfigs/MSPM0G3507.ccxml"/>
+    <stringAttribute key="org.eclipse.debug.core.CONSOLE_ENCODING" value="UTF-8"/>
+    <stringAttribute key="org.eclipse.debug.ui.ATTR_LAUNCH_IN_BACKGROUND" value="false"/>
+    <stringAttribute key="org.eclipse.debug.ui.ATTR_REFRESH_SCOPE" value="${project}"/>
+    <stringAttribute key="org.eclipse.jdt.launch.PROJECT_ATTR" value="0.7"/>
+</launchConfiguration>

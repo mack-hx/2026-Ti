@@ -9,10 +9,9 @@
 - **赛事**：2026 TI 电赛（嵌入式赛道）
 - **平台**：MSPM0G3507 (LQFP-64)，TI MSPM0 SDK 2.10.00.04
 - **工程版本**:
-- `0.6/` (**当前最新, 实验田; 从 0.5 迭代, 基于 win_workspace_ccs 同步代码**)
-- `0.5/` (**前一版, 锁住不再改; 0.6 出问题时的回退基准**)
-- `0.4/` (**稳态分支, 锁住不再改**)
-- `0.3/` (**稳态分支, 锁住不再改**)
+- `0.7/` (**当前最新, 实验田; 从 `win_workspace_ccs/0.7/` 导入并适配 macOS CCS**)
+- `0.6/` (**前一版, 锁住不再改; 0.7 出问题时的回退基准。下文未特别标注的既有架构说明仍以 0.6 为准**)
+- `0.5/` / `0.4/` / `0.3/` (**稳态历史版本, 锁住不再改**)
 - `0.1/` / `0.2/` (历史版本, 不再改动)
 - **IDE**：CCS (Code Composer Studio)，SysConfig 图形化配置
 - **主机**：macOS 15 (darwin 25.5.0)
@@ -568,28 +567,29 @@ temp [°C]  = raw / 340 + 21
 
 ### 9.4 目录约定
 
-- `0.6/system/` 系统层 / `0.6/user/` 用户层 / `0.6/Hardware/<模块名>/` 驱动层
+- `0.7/system/` 系统层 / `0.7/user/` 用户层 / `0.7/Hardware/<模块名>/` 驱动层
+- `0.7/` 是 macOS CCS 工程；`win_workspace_ccs/0.7/` 是 Windows CCS 工程
 - `LOG.md` 不进 git（私人日志）；`AGENTS.md` 进 git（共享）
 
 ### 9.5 代码迭代流程（mac → win + mac 双目标）
 
-**来源**：`mac 0.6/`（mac 上的最新代码）
+**来源**：`mac 0.7/`（mac 上的最新代码）
 
 **目标**：两个目录都要同步更新
-1. `win_workspace_ccs/0.6/`（Windows CCS 项目配置 + 编译产物）
-2. `mac 0.6/`（mac 上的 CCS 项目）
+1. `win_workspace_ccs/0.7/`（Windows CCS 项目配置 + 编译产物）
+2. `mac 0.7/`（mac 上的 CCS 项目）
 
 **流程**：
 ```
-1. 从 mac 0.6/ 获取源代码（.c .h .syscfg）
-2. 复制到 win_workspace_ccs/0.6/（替换旧文件，保留 CCS 配置）
-3. 复制到 mac 0.6/（更新 mac 项目）
+1. 从 mac 0.7/ 获取源代码（.c .h .syscfg）
+2. 复制到 win_workspace_ccs/0.7/（替换旧文件，保留 CCS 配置）
+3. 复制到 mac 0.7/（更新 mac 项目）
 4. 如果有新增文件（.c .h），需要在 CCS 中手动 Add 到项目
 ```
 
 **Debug 配置**：
 - `.launches/` 目录在 CCS 中不会被自动复制
-- 新建工程后需要手动创建 `.launches/0.6 Debug.launch`（参考 win_workspace_ccs/0.6/.launches/）
+- 新建工程后需要手动创建 `.launches/0.7 Debug.launch`（参考 `win_workspace_ccs/0.7/.launches/`）
 
 **保留文件**（不覆盖）：
 - `.cproject` / `.ccsproject`
